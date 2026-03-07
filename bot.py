@@ -40,17 +40,134 @@ class PhotoStates(StatesGroup):
 
 # ========== ГЛАВНАЯ КЛАВИАТУРА ==========
 def get_main_keyboard():
-    """Главная клавиатура с 10 предметами и кнопкой режима"""
+    """Главная клавиатура с кнопками категорий"""
     buttons = [
-        [KeyboardButton(text="📐 Математика"), KeyboardButton(text="⚡ Физика")],
-        [KeyboardButton(text="🧪 Химия"), KeyboardButton(text="🧬 Биология")],
-        [KeyboardButton(text="📖 Русский язык"), KeyboardButton(text="📜 История")],
-        [KeyboardButton(text="🌍 География"), KeyboardButton(text="⚖️ Обществознание")],
-        [KeyboardButton(text="📚 Литература"), KeyboardButton(text="🎵 Музыка")],
-        [KeyboardButton(text="📊 Мой лимит"), KeyboardButton(text="💎 Premium")],
-        [KeyboardButton(text="⚙️ Режим ответа")]
+        [KeyboardButton(text="🎓 Предметы"), KeyboardButton(text="📊 Мой лимит")],
+        [KeyboardButton(text="💎 Premium"), KeyboardButton(text="⚙️ Режим ответа")]
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
+# ========== КЛАВИАТУРА С ПРЕДМЕТАМИ ==========
+def get_subjects_keyboard():
+    """Клавиатура со всеми предметами"""
+    buttons = [
+        [KeyboardButton(text="📐 Математика"), KeyboardButton(text="⚡ Физика"), KeyboardButton(text="🧪 Химия")],
+        [KeyboardButton(text="🧬 Биология"), KeyboardButton(text="📖 Русский язык"), KeyboardButton(text="📜 История")],
+        [KeyboardButton(text="🌍 География"), KeyboardButton(text="⚖️ Обществознание"), KeyboardButton(text="📚 Литература")],
+        [KeyboardButton(text="🎵 Музыка"), KeyboardButton(text="🔙 Назад в главное меню")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
+# ========== ОБРАБОТЧИК КНОПКИ ПРЕДМЕТЫ ==========
+@dp.message(lambda message: message.text == "🎓 Предметы")
+async def subjects_menu(message: types.Message):
+    """Показывает меню с выбором предметов"""
+    await message.answer(
+        "📚 **Выбери предмет:**",
+        reply_markup=get_subjects_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# ========== ОБРАБОТЧИК КНОПКИ НАЗАД ==========
+@dp.message(lambda message: message.text == "🔙 Назад в главное меню")
+async def back_to_main(message: types.Message):
+    """Возвращает в главное меню"""
+    await message.answer(
+        "🏠 **Главное меню**",
+        reply_markup=get_main_keyboard(),
+        parse_mode="Markdown"
+    )
+
+# ========== ОБРАБОТЧИКИ ПРЕДМЕТОВ (ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ) ==========
+@dp.message(lambda message: message.text == "📐 Математика")
+async def math_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "📐 Ты выбрал Математику. Напиши пример или задачу!",
+        reply_markup=get_main_keyboard()  # Возвращаем в главное меню
+    )
+
+@dp.message(lambda message: message.text == "⚡ Физика")
+async def physics_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "⚡ Физика. Напиши условие задачи!",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "🧪 Химия")
+async def chemistry_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "🧪 Химия. Жду уравнение или задачу!",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "🧬 Биология")
+async def bio_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "🧬 Биология. О чём расскажем?",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "📖 Русский язык")
+async def russian_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "📖 Русский язык. Присылай слово или предложение!",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "📜 История")
+async def history_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "📜 История. О каком событии или личности расскажем?",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "🌍 География")
+async def geography_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "🌍 География. Спрашивай о странах, реках, горах!",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "⚖️ Обществознание")
+async def society_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "⚖️ Обществознание. Что интересует: право, экономика, политика?",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "📚 Литература")
+async def literature_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "📚 Литература. О каком произведении или авторе расскажем?",
+        reply_markup=get_main_keyboard()
+    )
+
+@dp.message(lambda message: message.text == "🎵 Музыка")
+async def music_handler(message: types.Message):
+    user_id = message.from_user.id
+    await set_user_subject(user_id, subject_to_english(message.text))
+    await message.answer(
+        "🎵 Музыка. Спроси про композитора или произведение!",
+        reply_markup=get_main_keyboard()
+    )
 
 # ========== ПЕРЕВОД НАЗВАНИЙ ПРЕДМЕТОВ ==========
 def subject_to_english(russian_subject: str) -> str:
