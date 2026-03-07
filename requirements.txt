@@ -6,6 +6,5 @@ Pillow==10.4.0
 pytesseract==0.3.13
 opencv-python-headless==4.10.0.84
 typing-extensions==4.12.2
-aiohttp==3.11.12
 aiofiles==24.1.0
 certifi==2025.1.31
