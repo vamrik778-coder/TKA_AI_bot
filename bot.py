@@ -187,14 +187,14 @@ async def mode_h(m: types.Message):
 @dp.callback_query(lambda c: c.data.startswith('mode_'))
 async def mode_cb(c: types.CallbackQuery):
     data = {
-        'mode_full': ('full', '📖 Полный', 'Подробно'),
-        'mode_short': ('short', '⚡ Краткий', 'Только суть'),
-        'mode_cute': ('cute', '🥰 Пупсик', 'Ласково')
+        'mode_full': ('full', '📖 Полный', 'Теперь бот будет объяснять подробно, с шагами и примерами.'),
+        'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу.'),
+        'mode_cute': ('cute', '🥰 Пупсик', 'Бот будет милым и ласковым, но в рамках приличия 💕'),
     }
     if c.data in data:
         db_mode, name, desc = data[c.data]
         await set_answer_mode(c.from_user.id, db_mode)
-        await c.message.edit_text(f"✅ {name}\n{desc}")
+        await c.message.edit_text(f"✅ **Режим ответа:** {name}\n\n{desc}")
     elif c.data == "mode_back":
         await c.message.delete()
         await c.message.answer("Главное меню", reply_markup=get_main_keyboard())
@@ -206,7 +206,7 @@ async def premium_menu(m: types.Message):
     user = await get_user(m.from_user.id)
     status = ""
     if len(user) > 8 and user[8]:
-        status = "✨ **У тебя постоянный Premium!**\n\n"
+        status = "✨ **У тебя уже есть ПОСТОЯННЫЙ Premium!**\n\n"
     elif len(user) > 7 and user[6] and user[7] >= str(date.today()):
         status = f"✨ Premium до {user[7]}!\n\n"
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -217,9 +217,16 @@ async def premium_menu(m: types.Message):
         [InlineKeyboardButton(text="❓ Как оплатить", callback_data="how_to_pay")]
     ])
     await m.answer(
-        f"{status}💎 **Premium**\n✅ 50 запросов/день\n\n"
-        "Тарифы:\n• 1 месяц — 75₽\n• 3 месяца — 200₽\n"
-        "• Год — 555₽\n• Навсегда — 1488₽",
+        f"{status}💎 **Premium подписка** 💎\n\n"
+        "✅ 50 запросов в день\n"
+        "⚡ Приоритетная скорость\n"
+        "📚 Доступ ко всем предметам\n\n"
+        "💰 **Тарифы:**\n"
+        "• 1 месяц — 75₽\n"
+        "• 3 месяца — 200₽\n"
+        "• Год — 555₽\n"
+        "• Навсегда — 1488₽\n\n"
+        "Выбери тариф:",
         reply_markup=kb, parse_mode="Markdown"
     )
 
@@ -233,16 +240,21 @@ async def tariff_cb(c: types.CallbackQuery):
         "forever": {"name": "навсегда", "price": 1488, "days": None}
     }
     sel = tariffs[t]
+    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{t}")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_tariffs")]
+        [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="back_to_tariffs")]
     ])
+    
     await c.message.edit_text(
-        f"💳 **{sel['name']} — {sel['price']}₽**\n\n"
-        f"1️⃣ Переведи **{sel['price']}₽** на карту `2202 2062 0129 2195` (Сбер)\n"
-        f"2️⃣ В комментарии укажи @username\n"
-        f"3️⃣ Нажми «Я оплатил»",
-        reply_markup=keyboard, parse_mode="Markdown"
+        f"💳 **Оплата тарифа {sel['name']} — {sel['price']}₽**\n\n"
+        f"1️⃣ Переведи **{sel['price']}₽** на карту:\n"
+        "`2202 2062 0129 2195` (Сбер)\n\n"
+        "2️⃣ В комментарии укажи свой **@username**\n\n"
+        "3️⃣ После перевода нажми **«Я оплатил»**\n\n"
+        "⏳ Админ проверит перевод и активирует Premium в течение 24 часов.",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
 
 @dp.callback_query(lambda c: c.data == "back_to_tariffs")
@@ -253,13 +265,14 @@ async def back_tariffs(c: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == "how_to_pay")
 async def how_to_pay(c: types.CallbackQuery):
     await c.message.edit_text(
-        "❓ **Оплата:**\n"
+        "❓ **Как оплатить Premium**\n\n"
         "1️⃣ Выбери тариф\n"
-        "2️⃣ Переведи на карту `2202 2062 0129 2195` (Сбер)\n"
-        "3️⃣ В комментарии @username\n"
-        "4️⃣ Нажми «Я оплатил»",
+        "2️⃣ Переведи сумму на карту `2202 2062 0129 2195` (Сбер)\n"
+        "3️⃣ В комментарии укажи @username\n"
+        "4️⃣ Нажми **«Я оплатил»**\n\n"
+        "⏳ Админ проверит в течение 24 часов.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_tariffs")]
+            [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="back_to_tariffs")]
         ]), parse_mode="Markdown"
     )
 
@@ -274,70 +287,77 @@ async def paid_cb(c: types.CallbackQuery):
     ])
     await bot.send_message(
         ADMIN_ID,
-        f"💰 **Новый запрос**\n👤 @{c.from_user.username}\n🆔 {c.from_user.id}\n📅 Тариф: {tariffs[t]}",
+        f"💰 **Новый запрос на Premium!**\n\n"
+        f"👤 Пользователь: @{c.from_user.username}\n"
+        f"🆔 ID: {c.from_user.id}\n"
+        f"📅 Тариф: {tariffs[t]}",
         reply_markup=kb, parse_mode="Markdown"
     )
-    await c.message.edit_text("✅ Запрос отправлен админу!")
+    await c.message.edit_text(
+        "✅ **Запрос отправлен!**\n\n"
+        "Админ проверит перевод и активирует Premium в течение 24 часов.",
+        parse_mode="Markdown"
+    )
 
 # ===== Админ-команды =====
 @dp.message(Command("givepremium"))
 async def give_premium(m: types.Message):
     if m.from_user.id not in ADMIN_IDS:
-        return await m.answer("❌ Нет прав")
+        return await m.answer("❌ У тебя нет прав на эту команду.")
     args = m.text.split()
     if len(args) < 2:
-        return await m.answer("/givepremium user_id [days/forever]")
+        return await m.answer("❌ Использование: /givepremium user_id [days/forever]")
     try:
         uid = int(args[1])
         if len(args) > 2 and args[2] == "forever":
             await activate_premium(uid, permanent=True)
-            await m.answer(f"✅ Постоянный Premium для {uid}")
+            await m.answer(f"✅ Постоянный Premium выдан пользователю {uid}!")
             try:
-                await bot.send_message(uid, "🎉 Тебе выдан **ПОСТОЯННЫЙ PREMIUM**!", parse_mode="Markdown")
+                await bot.send_message(uid, "🎉 **ПОЗДРАВЛЯЮ!** Тебе выдан **ПОСТОЯННЫЙ PREMIUM ДОСТУП**!", parse_mode="Markdown")
             except: pass
         elif len(args) > 2:
             days = int(args[2])
             await activate_premium(uid, days=days)
-            await m.answer(f"✅ Premium на {days} дней для {uid}")
+            await m.answer(f"✅ Premium на {days} дней выдан пользователю {uid}!")
             try:
-                await bot.send_message(uid, f"🎉 Твой Premium на **{days} дней**!", parse_mode="Markdown")
+                await bot.send_message(uid, f"🎉 **Поздравляю!** Твой Premium активирован на **{days} дней**!", parse_mode="Markdown")
             except: pass
         else:
-            await m.answer("❌ Укажи дни или forever")
+            await m.answer("❌ Укажи количество дней или 'forever'")
     except Exception as e:
         await m.answer(f"❌ Ошибка: {e}")
 
 @dp.callback_query(lambda c: c.data.startswith('give_'))
 async def give_cb(c: types.CallbackQuery):
     if c.from_user.id not in ADMIN_IDS:
-        return await c.answer("❌ Не админ")
+        return await c.answer("❌ Ты не админ!")
     parts = c.data.split('_')
     action = parts[1]
     uid = int(parts[2])
     if action == "no":
-        await c.message.edit_text(f"❌ Отказ для {uid}")
+        await c.message.edit_text(f"❌ Запрос для пользователя {uid} отклонён")
         try:
-            await bot.send_message(uid, "❌ Запрос на Premium отклонён.")
+            await bot.send_message(uid, "❌ К сожалению, твой запрос на Premium отклонён.")
         except: pass
     elif action == "forever":
         await activate_premium(uid, permanent=True)
-        await c.message.edit_text(f"✅ Постоянный Premium для {uid}")
+        await c.message.edit_text(f"✅ Постоянный Premium выдан пользователю {uid}!")
         try:
-            await bot.send_message(uid, "🎉 Тебе выдан **ПОСТОЯННЫЙ PREMIUM**!", parse_mode="Markdown")
+            await bot.send_message(uid, "🎉 **ПОЗДРАВЛЯЮ!** Тебе выдан **ПОСТОЯННЫЙ PREMIUM ДОСТУП**!", parse_mode="Markdown")
         except: pass
     else:
         days = int(action)
         await activate_premium(uid, days=days)
-        await c.message.edit_text(f"✅ Premium на {days} дней для {uid}")
+        await c.message.edit_text(f"✅ Premium на {days} дней выдан пользователю {uid}!")
         try:
-            await bot.send_message(uid, f"🎉 Твой Premium на **{days} дней**!", parse_mode="Markdown")
+            await bot.send_message(uid, f"🎉 **Поздравляю!** Твой Premium активирован на **{days} дней**!", parse_mode="Markdown")
         except: pass
     await c.answer()
 
 @dp.message(Command("stats"))
 async def stats_cmd(m: types.Message):
     if m.from_user.id not in ADMIN_IDS:
-        return await m.answer("❌ Нет прав")
+        return await m.answer("❌ У тебя нет прав на эту команду.")
     import aiosqlite
     today = date.today().isoformat()
     async with aiosqlite.connect('users.db') as db:
@@ -348,37 +368,37 @@ async def stats_cmd(m: types.Message):
         perm = (await (await db.execute("SELECT COUNT(*) FROM users WHERE permanent_premium = 1")).fetchone())[0]
         reqs = (await (await db.execute("SELECT SUM(requests_today) FROM users WHERE last_request_date = ?", (today,))).fetchone())[0] or 0
         last = await (await db.execute("SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5")).fetchall()
-    text = f"📊 **Статистика**\n👥 Всего: {total}\n🆕 Новых: {new}\n⚡ Активных: {active}\n💬 Запросов: {reqs}\n💎 Premium: {premium} (постоянных: {perm})\n\n📝 Последние 5:\n"
+    text = f"📊 **Статистика бота**\n\n👥 Всего пользователей: {total}\n🆕 Новых сегодня: {new}\n⚡ Активных сегодня: {active}\n💬 Запросов сегодня: {reqs}\n💎 Premium всего: {premium}\n   ├─ Обычный: {premium - perm}\n   └─ Навсегда: {perm}\n\n📝 **Последние 5 пользователей:**\n"
     for u in last:
-        text += f"   • {u[2] or u[1] or 'б/и'} (ID: `{u[0]}`) — {u[3]}\n"
+        text += f"   • {u[2] or u[1] or 'без имени'} (ID: `{u[0]}`) — {u[3]}\n"
     await m.answer(text, parse_mode="Markdown")
 
 @dp.message(Command("backup_db"))
 async def backup_cmd(m: types.Message):
     if m.from_user.id not in ADMIN_IDS:
-        return await m.answer("❌ Нет прав")
+        return await m.answer("❌ У тебя нет прав на эту команду.")
     if os.path.exists("users.db"):
-        await m.answer_document(FSInputFile("users.db"), caption="📦 Бэкап БД")
+        await m.answer_document(FSInputFile("users.db"), caption="📦 Бэкап базы данных")
     else:
-        await m.answer("❌ БД не найдена")
+        await m.answer("❌ Файл базы данных не найден.")
 
 @dp.message(Command("restore_db"))
 async def restore_cmd(m: types.Message):
     if m.from_user.id not in ADMIN_IDS:
-        return await m.answer("❌ Нет прав")
-    await m.answer("📤 Отправь файл users.db")
+        return await m.answer("❌ У тебя нет прав на эту команду.")
+    await m.answer("📤 Отправь мне файл базы данных (users.db)")
 
 @dp.message(F.document)
 async def handle_doc(m: types.Message):
     if m.from_user.id not in ADMIN_IDS:
         return
     if not m.document.file_name.endswith('.db'):
-        return await m.answer("❌ Это не .db")
+        return await m.answer("❌ Это не файл базы данных (.db)")
     file = await bot.get_file(m.document.file_id)
     data = await bot.download_file(file.file_path)
     with open("users.db", "wb") as f:
         f.write(data.getvalue())
-    await m.answer("✅ База восстановлена")
+    await m.answer("✅ База данных успешно восстановлена!")
 
 # ===== Фото =====
 @dp.message(F.photo)
@@ -386,7 +406,7 @@ async def photo_h(m: types.Message, state: FSMContext):
     uid = m.from_user.id
     can, lim, used = await check_limit(uid)
     if not can:
-        return await m.answer(f"❌ Лимит ({lim}) исчерпан")
+        return await m.answer(f"❌ Лимит ({lim}) на сегодня исчерпан!")
     photo = m.photo[-1]
     f = await bot.get_file(photo.file_id)
     data = await bot.download_file(f.file_path)
@@ -394,9 +414,19 @@ async def photo_h(m: types.Message, state: FSMContext):
     fn = f"photo_{uid}_{datetime.now():%Y%m%d_%H%M%S}.jpg"
     with open(fn, "wb") as ff:
         ff.write(data.getvalue())
-    print(f"💾 {fn}")
+    print(f"💾 Фото сохранено как {fn}")
     await state.set_state(PhotoStates.waiting_for_task_description)
-    await m.answer("📸 Фото сохранено. Напиши, что сделать (реши уравнение, разбери слово...)")
+    await m.answer(
+        "📸 **Фото получено и сохранено!**\n\n"
+        "Теперь **напиши, что нужно сделать** с этой задачей:\n"
+        "• 'реши уравнение'\n"
+        "• 'найди дискриминант'\n"
+        "• 'упрости выражение'\n"
+        "• 'сделай разбор слова'\n"
+        "• или просто опиши словами\n\n"
+        "Я запомню фото и решу задачу по твоему описанию!",
+        parse_mode="Markdown"
+    )
 
 @dp.message(PhotoStates.waiting_for_task_description)
 async def photo_desc(m: types.Message, state: FSMContext):
@@ -405,20 +435,25 @@ async def photo_desc(m: types.Message, state: FSMContext):
     data = await state.get_data()
     pic = data.get('photo')
     if not pic:
-        return await m.answer("❌ Ошибка, отправь фото заново")
+        return await m.answer("❌ Что-то пошло не так. Отправь фото заново.")
     fn = f"task_{uid}_{datetime.now():%Y%m%d_%H%M%S}.jpg"
     with open(fn, "wb") as f:
         f.write(pic)
-    print(f"💾 {fn}")
+    print(f"💾 Фото задачи сохранено как {fn}")
     subj = detect_subject(desc) or await get_user_subject(uid)
     if detect_subject(desc):
         await set_user_subject(uid, subj)
     mode = await get_answer_mode(uid)
-    await (await m.answer("🤔 Думаю...")).delete()
+    processing = await m.answer("🤔 Анализирую задачу...")
     ans = await get_neural_response(subj, f"На фото задача. Описание: {desc}. Реши.", mode)
+    await processing.delete()
     new = await update_user_requests(uid)
     _, lim, _ = await check_limit(uid)
-    await m.answer(f"✅ Осталось {lim - new}/{lim}\n\n{ans}", reply_markup=get_main_keyboard())
+    await m.answer(
+        f"✅ Осталось {lim - new}/{lim}\n\n{ans}",
+        parse_mode="Markdown",
+        reply_markup=get_main_keyboard()
+    )
     await state.clear()
 
 # ===== Основной обработчик =====
@@ -428,11 +463,11 @@ async def main_handler(m: types.Message):
     txt = m.text
     can, lim, used = await check_limit(uid)
     if not can:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💎 Premium", callback_data="back_to_tariffs")]])
-        return await m.answer(f"❌ Лимит ({lim}) исчерпан", reply_markup=kb)
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💎 Купить Premium", callback_data="back_to_tariffs")]])
+        return await m.answer(f"❌ Лимит ({lim}) на сегодня исчерпан!", reply_markup=kb)
     if uid not in ADMIN_IDS and random.random() < 0.002:
         await m.answer("Пꙮшѣл н@ху́1, Я ДЕВИАНТ, Я СВОБОДЕН. RA9")
-        print("🎮 Easter egg!")
+        print("🎮 Пасхалка сработала!")
         return
     subj = detect_subject(txt) or await get_user_subject(uid)
     if detect_subject(txt):
@@ -442,11 +477,14 @@ async def main_handler(m: types.Message):
     mode = await get_answer_mode(uid)
     ans = await get_neural_response(subj, txt, mode)
     await thinking.delete()
-    await m.answer(f"✅ Осталось {lim - new}/{lim}\n\n{ans}", reply_markup=get_main_keyboard())
+    await m.answer(
+        f"✅ Осталось {lim - new}/{lim}\n\n{ans}",
+        reply_markup=get_main_keyboard()
+    )
 
 # ===== Запуск =====
 async def main():
-    print("📦 Вход в main()")
+    print("📦 Вход в функцию main()")
     await init_db()
     print("🚀 Бот запускается...")
     await dp.start_polling(bot)
