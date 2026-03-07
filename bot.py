@@ -6,11 +6,13 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, 
-    InlineKeyboardMarkup, InlineKeyboardButton
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    FSInputFile
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+import os
 
 from database import (
     init_db, check_limit, update_user_requests, 
@@ -627,6 +629,55 @@ async def process_photo_task(message: types.Message, state: FSMContext):
     
     await state.clear()
 
+# ========== КОМАНДЫ ДЛЯ БЭКАПА БАЗЫ ДАННЫХ (ТОЛЬКО ДЛЯ АДМИНА) ==========
+@dp.message(Command("backup_db"))
+async def backup_database(message: types.Message):
+    """Админ: скачать файл базы данных"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+
+    db_file = "users.db"
+    if not os.path.exists(db_file):
+        await message.answer("❌ Файл базы данных не найден.")
+        return
+
+    # Отправляем файл пользователю
+    await message.answer_document(
+        document=FSInputFile(db_file),
+        caption="📦 Бэкап базы данных"
+    )
+
+@dp.message(Command("restore_db"))
+async def restore_database(message: types.Message):
+    """Админ: загрузить новый файл базы данных"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+
+    await message.answer("📤 Отправь мне файл базы данных (users.db)")
+
+@dp.message(F.document)
+async def handle_db_file(message: types.Message):
+    """Принимает файл базы данных от админа"""
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    document = message.document
+    if not document.file_name.endswith('.db'):
+        await message.answer("❌ Это не файл базы данных (.db)")
+        return
+
+    # Скачиваем файл
+    file_info = await bot.get_file(document.file_id)
+    downloaded_file = await bot.download_file(file_info.file_path)
+
+    # Сохраняем поверх старой базы
+    with open("users.db", "wb") as f:
+        f.write(downloaded_file.getvalue())
+
+    await message.answer("✅ База данных успешно восстановлена!")
+
 # ========== ОСНОВНОЙ ОБРАБОТЧИК СООБЩЕНИЙ ==========
 @dp.message()
 async def handle_task(message: types.Message):
@@ -691,60 +742,6 @@ async def handle_task(message: types.Message):
         f"{neural_answer}",
         reply_markup=get_main_keyboard()
     )
-
-    import os
-from aiogram.types import FSInputFile
-
-# ========== КОМАНДЫ ДЛЯ БЭКАПА БАЗЫ ДАННЫХ (ТОЛЬКО ДЛЯ АДМИНА) ==========
-@dp.message(Command("backup_db"))
-async def backup_database(message: types.Message):
-    """Админ: скачать файл базы данных"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У тебя нет прав на эту команду.")
-        return
-
-    db_file = "users.db"
-    if not os.path.exists(db_file):
-        await message.answer("❌ Файл базы данных не найден.")
-        return
-
-    # Отправляем файл пользователю
-    await message.answer_document(
-        document=FSInputFile(db_file),
-        caption="📦 Бэкап базы данных"
-    )
-
-@dp.message(Command("restore_db"))
-async def restore_database(message: types.Message):
-    """Админ: загрузить новый файл базы данных"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У тебя нет прав на эту команду.")
-        return
-
-    await message.answer("📤 Отправь мне файл базы данных (users.db)")
-
-@dp.message(F.document)
-async def handle_db_file(message: types.Message):
-    """Принимает файл базы данных от админа"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
-
-    document = message.document
-    if not document.file_name.endswith('.db'):
-        await message.answer("❌ Это не файл базы данных (.db)")
-        return
-
-    # Скачиваем файл
-    file_info = await bot.get_file(document.file_id)
-    downloaded_file = await bot.download_file(file_info.file_path)
-
-    # Сохраняем поверх старой базы
-    with open("users.db", "wb") as f:
-        f.write(downloaded_file.getvalue())
-
-    await message.answer("✅ База данных успешно восстановлена!")
-
-    # Перезапуск бота не нужен, так как SQLite перечитает файл
 
 # ========== ЗАПУСК ==========
 async def main():
