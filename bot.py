@@ -1,7 +1,8 @@
 import asyncio
 import sys
 import random
-from datetime import date
+import os
+from datetime import date, datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import (
@@ -12,17 +13,16 @@ from aiogram.types import (
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-import os
 
 from database import (
     init_db, check_limit, update_user_requests, 
     get_user, set_user_subject, get_user_subject,
-    activate_premium
+    activate_premium, get_answer_mode, set_answer_mode
 )
 from neural import get_neural_response
 
 print("=" * 50)
-print("STARTING BOT WITH 10 SUBJECTS AND AUTO-DETECT...")
+print("STARTING BOT WITH 10 SUBJECTS AND 3 MODES...")
 print("=" * 50)
 
 # ========== НАСТРОЙКИ ==========
@@ -46,12 +46,12 @@ def get_main_keyboard():
         [KeyboardButton(text="📖 Русский язык"), KeyboardButton(text="📜 История")],
         [KeyboardButton(text="🌍 География"), KeyboardButton(text="⚖️ Обществознание")],
         [KeyboardButton(text="📚 Литература"), KeyboardButton(text="🎵 Музыка")],
-        [KeyboardButton(text="📊 Мой лимит"), KeyboardButton(text="💎 Premium")]
+        [KeyboardButton(text="📊 Мой лимит"), KeyboardButton(text="💎 Premium")],
+        [KeyboardButton(text="⚙️ Режим ответа")]
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 def subject_to_english(russian_subject: str) -> str:
-    """Переводит название предмета с русского на английский"""
     subjects = {
         "📐 Математика": "mathematics",
         "⚡ Физика": "physics",
@@ -67,85 +67,45 @@ def subject_to_english(russian_subject: str) -> str:
     return subjects.get(russian_subject, "mathematics")
 
 def detect_subject(text: str) -> str:
-    """Автоматически определяет предмет по тексту"""
     text_lower = text.lower()
     
-    # Математика
-    math_keywords = ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение', 
-                    ' + ', ' - ', ' * ', ' / ', '=', 'квадрат', 'степень', 
-                    'сумма', 'разность', 'произведение', 'интеграл', 'функция',
-                    'логарифм', 'синус', 'косинус', 'тангенс', 'график']
+    math_keywords = ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение']
     if any(keyword in text_lower for keyword in math_keywords):
         return 'mathematics'
     
-    # Физика
-    physics_keywords = ['ом', 'напряжение', 'сила тока', 'сопротивление', 
-                        'мощность', 'энергия', 'работа', 'движение', 'скорость',
-                        'ускорение', 'масса', 'плотность', 'давление', 'физика',
-                        'кинетическая', 'потенциальная', 'импульс', 'волна']
+    physics_keywords = ['ом', 'напряжение', 'сила тока', 'физика']
     if any(keyword in text_lower for keyword in physics_keywords):
         return 'physics'
     
-    # Химия
-    chemistry_keywords = ['h2o', 'реакция', 'кислота', 'щелочь', 'моль', 
-                          'вещество', 'раствор', 'оксид', 'гидроксид', 'химия',
-                          'таблица менделеева', 'атом', 'молекула', 'соль', 
-                          'металл', 'неметалл', 'индикатор']
+    chemistry_keywords = ['h2o', 'реакция', 'кислота', 'химия']
     if any(keyword in text_lower for keyword in chemistry_keywords):
         return 'chemistry'
     
-    # Биология
-    biology_keywords = ['клетка', 'биология', 'фотосинтез', 'организм', 
-                        'эволюция', 'ген', 'днк', 'белок', 'живой', 'природа',
-                        'растение', 'животное', 'гриб', 'бактерия', 'ткань',
-                        'орган', 'система органов', 'анатомия']
+    biology_keywords = ['клетка', 'биология', 'фотосинтез', 'организм']
     if any(keyword in text_lower for keyword in biology_keywords):
         return 'biology'
     
-    # Русский язык
-    russian_keywords = ['слово', 'предложение', 'суффикс', 'корень', 'приставка',
-                        'окончание', 'разбор', 'морфема', 'орфография', 'пунктуация',
-                        'глагол', 'существительное', 'прилагательное', 'местоимение',
-                        'наречие', 'союз', 'предлог', 'частица']
+    russian_keywords = ['слово', 'предложение', 'суффикс', 'корень', 'разбор']
     if any(keyword in text_lower for keyword in russian_keywords):
         return 'russian'
     
-    # История
-    history_keywords = ['история', 'война', 'революция', 'царь', 'император', 
-                        'дата', 'событие', 'век', 'год', 'битва', 'пётр', 
-                        'иван грозный', 'екатерина', 'николай', 'ссср', 'русь',
-                        'князь', 'древний', 'средневековье', 'новое время']
+    history_keywords = ['история', 'война', 'революция', 'царь', 'дата']
     if any(keyword in text_lower for keyword in history_keywords):
         return 'history'
     
-    # География
-    geography_keywords = ['география', 'река', 'гора', 'страна', 'столица', 
-                          'континент', 'материк', 'океан', 'климат', 'население', 
-                          'карта', 'координаты', 'широта', 'долгота', 'экватор',
-                          'меридиан', 'параллель', 'природный пояс']
+    geography_keywords = ['география', 'река', 'гора', 'страна', 'столица']
     if any(keyword in text_lower for keyword in geography_keywords):
         return 'geography'
     
-    # Обществознание
-    society_keywords = ['общество', 'государство', 'право', 'закон', 'экономика', 
-                        'политика', 'власть', 'социальный', 'гражданин', 'конституция',
-                        'мораль', 'религия', 'культура', 'личность', 'социализация',
-                        'труд', 'собственность', 'рынок', 'спрос', 'предложение']
+    society_keywords = ['общество', 'государство', 'право', 'экономика']
     if any(keyword in text_lower for keyword in society_keywords):
         return 'society'
     
-    # Литература
-    literature_keywords = ['литература', 'поэт', 'писатель', 'роман', 'поэма', 
-                           'стих', 'рассказ', 'повесть', 'герой', 'сюжет', 
-                           'пушкин', 'толстой', 'достоевский', 'чехов', 'тургенев',
-                           'лермонтов', 'гоголь', 'булгаков', 'солженицын']
+    literature_keywords = ['литература', 'поэт', 'писатель', 'роман']
     if any(keyword in text_lower for keyword in literature_keywords):
         return 'literature'
     
-    # Музыка
-    music_keywords = ['нота', 'аккорд', 'музыка', 'бетховен', 'моцарт', 'соната',
-                      'симфония', 'мелодия', 'ритм', 'темп', 'скрипка', 'пианино',
-                      'гитара', 'оркестр', 'композитор', 'произведение', 'опера']
+    music_keywords = ['нота', 'аккорд', 'музыка', 'бетховен']
     if any(keyword in text_lower for keyword in music_keywords):
         return 'music'
     
@@ -164,14 +124,16 @@ async def start_command(message: types.Message):
         f"👋 **Привет, {first_name}!**\n\n"
         "🤖 Я **TKA AI** — твой личный помощник в учёбе!\n\n"
         "📚 **Что я умею:**\n"
-        "• Решать задачи по **10 предметам** (математика, физика, русский, история и др.)\n"
-        "• Объяснять правила и теоремы простыми словами\n"
-        "• Распознавать текст с фото — просто сфоткай задание\n"
-        "• Автоматически определять предмет по тексту\n\n"
+        "• Решать задачи по **10 предметам**\n"
+        "• Объяснять правила простыми словами\n"
+        "• Распознавать текст с фото\n"
+        "• Автоматически определять предмет\n"
+        "• Говорить в 3 режимах (полный, краткий, пупсик)\n\n"
         f"📊 **Твой лимит сегодня:** {used}/{limit} запросов\n\n"
         "🔹 **Команды:**\n"
         "/start — это меню\n"
-        "/help — помощь\n\n"
+        "/help — помощь\n"
+        "/stats — статистика (админ)\n\n"
         "❓ **Нужна помощь?**\n"
         "👉 [Группа поддержки](t.me/TKA_AI_Help)\n\n"
         "⚡ **Выбери предмет ниже и напиши задачу!**"
@@ -187,20 +149,18 @@ async def start_command(message: types.Message):
 # ========== КОМАНДА ПОМОЩИ ==========
 @dp.message(Command("help"))
 async def help_command(message: types.Message):
-    """Показывает помощь по боту"""
-    
     help_text = (
         "🆘 **Помощь по TKA AI**\n\n"
         "📌 **Как пользоваться:**\n"
         "1️⃣ Выбери предмет в меню ниже\n"
         "2️⃣ Напиши задачу или отправь фото\n"
         "3️⃣ Получи решение\n\n"
-        "📸 **Фото:**\n"
-        "После отправки фото просто напиши, что нужно сделать\n\n"
+        "⚙️ **Режимы ответа:**\n"
+        "• 📖 Полный — подробное объяснение\n"
+        "• ⚡ Краткий — только суть\n"
+        "• 🥰 Пупсик — ласковый и милый\n\n"
         "💎 **Premium:**\n"
         "• 50 запросов в день вместо 15\n"
-        "• Приоритетная скорость\n"
-        "• Доступ ко всем предметам\n"
         "• Цены: 75₽/мес, 200₽/3 мес, 555₽/год, 1488₽ навсегда\n\n"
         "❓ **Вопросы?**\n"
         "👉 [Группа поддержки](t.me/TKA_AI_Help)\n\n"
@@ -279,32 +239,67 @@ async def limit_handler(message: types.Message):
     user_id = message.from_user.id
     subject_eng = await get_user_subject(user_id)
     subject_translate = {
-        "mathematics": "Математика",
-        "physics": "Физика",
-        "chemistry": "Химия",
-        "biology": "Биология",
-        "russian": "Русский язык",
-        "history": "История",
-        "geography": "География",
-        "society": "Обществознание",
-        "literature": "Литература",
-        "music": "Музыка"
+        "mathematics": "Математика", "physics": "Физика", "chemistry": "Химия",
+        "biology": "Биология", "russian": "Русский язык", "history": "История",
+        "geography": "География", "society": "Обществознание",
+        "literature": "Литература", "music": "Музыка"
     }
     subject_rus = subject_translate.get(subject_eng, subject_eng)
     can_request, limit, used = await check_limit(user_id)
     await message.answer(f"📊 Сегодня использовано: {used}/{limit}\n📚 Текущий предмет: {subject_rus}")
 
+# ========== КНОПКА РЕЖИМА ОТВЕТА ==========
+@dp.message(lambda message: message.text == "⚙️ Режим ответа")
+async def mode_handler(message: types.Message):
+    user_id = message.from_user.id
+    current_mode = await get_answer_mode(user_id)
+    
+    mode_names = {'full': '📖 Полный', 'short': '⚡ Краткий', 'cute': '🥰 Пупсик'}
+    mode_text = mode_names.get(current_mode, '📖 Полный')
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 Полный (подробно)", callback_data="mode_full")],
+        [InlineKeyboardButton(text="⚡ Краткий (только суть)", callback_data="mode_short")],
+        [InlineKeyboardButton(text="🥰 Пупсик (ласковый)", callback_data="mode_cute")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="mode_back")]
+    ])
+    
+    await message.answer(
+        f"⚙️ **Режим ответа**\n\n"
+        f"Сейчас выбран: **{mode_text}**\n\n"
+        f"Выбери, как бот должен отвечать:",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+@dp.callback_query(lambda c: c.data.startswith('mode_'))
+async def mode_callback(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    mode_info = {
+        'mode_full': ('full', '📖 Полный', 'Теперь бот будет объяснять подробно, с шагами и примерами.'),
+        'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу.'),
+        'mode_cute': ('cute', '🥰 Пупсик', 'Бот будет милым и ласковым, но в рамках приличия 💕'),
+    }
+    
+    if callback.data in mode_info:
+        db_mode, display_name, description = mode_info[callback.data]
+        await set_answer_mode(user_id, db_mode)
+        await callback.message.edit_text(f"✅ **Режим ответа:** {display_name}\n\n{description}")
+    elif callback.data == "mode_back":
+        await callback.message.delete()
+        await callback.message.answer("Главное меню:", reply_markup=get_main_keyboard())
+    
+    await callback.answer()
+
 # ========== PREMIUM МЕНЮ ==========
 @dp.message(lambda message: message.text == "💎 Premium")
 async def premium_menu(message: types.Message):
-    """Меню Premium с инструкцией по оплате"""
-    
     user_id = message.from_user.id
     user = await get_user(user_id)
     
     status_text = ""
     if len(user) > 8 and user[8]:
-        status_text = "✨ **У тебя уже есть ПОСТОЯННЫЙ Premium!** Спасибо за поддержку!\n\n"
+        status_text = "✨ **У тебя уже есть ПОСТОЯННЫЙ Premium!**\n\n"
     elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
         status_text = f"✨ **У тебя уже есть Premium до {user[7]}!**\n\n"
     
@@ -321,8 +316,7 @@ async def premium_menu(message: types.Message):
         "💎 **Premium подписка** 💎\n\n"
         "✅ 50 запросов в день\n"
         "⚡ Приоритетная скорость\n"
-        "📚 Доступ ко всем предметам\n"
-        "🎁 Поддержка разработчика\n\n"
+        "📚 Доступ ко всем предметам\n\n"
         "💰 **Тарифы:**\n"
         "• 1 месяц — 75₽\n"
         "• 3 месяца — 200₽\n"
@@ -335,16 +329,13 @@ async def premium_menu(message: types.Message):
 
 @dp.callback_query(lambda c: c.data.startswith('tariff_'))
 async def tariff_selected(callback: types.CallbackQuery):
-    """Обработка выбора тарифа"""
     tariff = callback.data.split('_')[1]
-    
     tariffs = {
         "1": {"name": "1 месяц", "price": 75, "days": 30},
         "3": {"name": "3 месяца", "price": 200, "days": 90},
         "12": {"name": "год", "price": 555, "days": 365},
         "forever": {"name": "навсегда", "price": 1488, "days": None}
     }
-    
     selected = tariffs[tariff]
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -356,43 +347,36 @@ async def tariff_selected(callback: types.CallbackQuery):
         f"💳 **Оплата тарифа {selected['name']} — {selected['price']}₽**\n\n"
         f"1️⃣ Переведи **{selected['price']}₽** на карту:\n"
         "`2202 2062 0129 2195` (Сбер)\n\n"
-        "2️⃣ В комментарии к переводу укажи свой **@username**\n\n"
-        "3️⃣ После перевода нажми кнопку **«Я оплатил»**\n\n"
+        "2️⃣ В комментарии укажи свой **@username**\n\n"
+        "3️⃣ После перевода нажми **«Я оплатил»**\n\n"
         "⏳ Админ проверит перевод и активирует Premium в течение 24 часов.",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
-
-@dp.callback_query(lambda c: c.data == "back_to_tariffs")
+    @dp.callback_query(lambda c: c.data == "back_to_tariffs")
 async def back_to_tariffs(callback: types.CallbackQuery):
-    """Возврат к выбору тарифов"""
     await premium_menu(callback.message)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "how_to_pay")
 async def how_to_pay(callback: types.CallbackQuery):
-    """Информация об оплате"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="back_to_tariffs")]
     ])
     
     await callback.message.edit_text(
         "❓ **Как оплатить Premium**\n\n"
-        "1️⃣ Выбери тариф (1 месяц, 3 месяца, год или навсегда)\n"
-        "2️⃣ Переведи нужную сумму на карту:\n"
-        "   `2202 2062 0129 2195` (Сбер)\n"
-        "3️⃣ **Обязательно** укажи в комментарии свой @username\n"
-        "4️⃣ Нажми кнопку «Я оплатил»\n"
-        "5️⃣ Дождись подтверждения от админа\n\n"
-        "⏳ Обычно проверка занимает несколько часов.\n"
-        "По всем вопросам пиши @твой_ник",
+        "1️⃣ Выбери тариф\n"
+        "2️⃣ Переведи сумму на карту `2202 2062 0129 2195` (Сбер)\n"
+        "3️⃣ В комментарии укажи @username\n"
+        "4️⃣ Нажми «Я оплатил»\n\n"
+        "⏳ Админ проверит в течение 24 часов.",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
 @dp.callback_query(lambda c: c.data.startswith('paid_'))
 async def process_paid(callback: types.CallbackQuery):
-    """Обработка нажатия кнопки 'Я оплатил'"""
     tariff = callback.data.split('_')[1]
     user_id = callback.from_user.id
     username = callback.from_user.username or "нет юзернейма"
@@ -431,15 +415,13 @@ async def process_paid(callback: types.CallbackQuery):
     
     await callback.message.edit_text(
         "✅ **Запрос отправлен!**\n\n"
-        "Админ проверит перевод и активирует Premium в течение 24 часов.\n"
-        "Спасибо за поддержку! 🙏",
+        "Админ проверит перевод и активирует Premium в течение 24 часов.",
         parse_mode="Markdown"
     )
 
 # ========== АДМИН-КОМАНДЫ ==========
 @dp.message(Command("givepremium"))
 async def give_premium_command(message: types.Message):
-    """Ручная выдача Premium через команду"""
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("❌ У тебя нет прав на эту команду.")
         return
@@ -464,12 +446,11 @@ async def give_premium_command(message: types.Message):
                 await bot.send_message(
                     user_id,
                     "🎉 **ПОЗДРАВЛЯЮ!** 🎉\n\n"
-                    "Тебе выдан **ПОСТОЯННЫЙ PREMIUM ДОСТУП**!\n"
-                    "Спасибо за поддержку проекта! 💪",
+                    "Тебе выдан **ПОСТОЯННЫЙ PREMIUM ДОСТУП**!",
                     parse_mode="Markdown"
                 )
             except:
-                await message.answer("⚠️ Пользователь не найден или заблокировал бота")
+                await message.answer("⚠️ Пользователь не найден")
         
         elif len(args) > 2:
             days = int(args[2])
@@ -479,12 +460,11 @@ async def give_premium_command(message: types.Message):
                 await bot.send_message(
                     user_id,
                     f"🎉 **Поздравляю!** 🎉\n\n"
-                    f"Твой Premium активирован на **{days} дней**!\n"
-                    f"Спасибо за поддержку проекта! 💪",
+                    f"Твой Premium активирован на **{days} дней**!",
                     parse_mode="Markdown"
                 )
             except:
-                await message.answer("⚠️ Пользователь не найден или заблокировал бота")
+                await message.answer("⚠️ Пользователь не найден")
         else:
             await message.answer("❌ Укажи количество дней или 'forever'")
             
@@ -493,7 +473,6 @@ async def give_premium_command(message: types.Message):
 
 @dp.callback_query(lambda c: c.data.startswith('give_'))
 async def admin_give_callback(callback: types.CallbackQuery):
-    """Админ выдаёт Premium через кнопки"""
     if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("❌ Ты не админ!")
         return
@@ -506,8 +485,7 @@ async def admin_give_callback(callback: types.CallbackQuery):
         await callback.message.edit_text(f"❌ Запрос для пользователя {user_id} отклонён")
         await bot.send_message(
             user_id,
-            "❌ К сожалению, твой запрос на Premium отклонён.\n"
-            "Проверь правильность перевода или свяжись с админом."
+            "❌ К сожалению, твой запрос на Premium отклонён."
         )
         return
     
@@ -517,8 +495,7 @@ async def admin_give_callback(callback: types.CallbackQuery):
         await bot.send_message(
             user_id,
             "🎉 **ПОЗДРАВЛЯЮ!** 🎉\n\n"
-            "Тебе выдан **ПОСТОЯННЫЙ PREMIUM ДОСТУП**!\n"
-            "Спасибо за поддержку проекта! 💪",
+            "Тебе выдан **ПОСТОЯННЫЙ PREMIUM ДОСТУП**!",
             parse_mode="Markdown"
         )
     else:
@@ -528,19 +505,113 @@ async def admin_give_callback(callback: types.CallbackQuery):
         await bot.send_message(
             user_id,
             f"🎉 **Поздравляю!** 🎉\n\n"
-            f"Твой Premium активирован на **{days} дней**!\n"
-            f"Спасибо за поддержку проекта! 💪",
+            f"Твой Premium активирован на **{days} дней**!",
             parse_mode="Markdown"
         )
     
     await callback.message.edit_text(text)
 
+# ========== СТАТИСТИКА ==========
+@dp.message(Command("stats"))
+async def stats_command(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+    
+    import aiosqlite
+    from datetime import date
+    
+    today = date.today().isoformat()
+    
+    async with aiosqlite.connect('users.db') as db:
+        cursor = await db.execute("SELECT COUNT(*) FROM users")
+        total_users = (await cursor.fetchone())[0]
+        
+        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE joined_date = ?", (today,))
+        new_today = (await cursor.fetchone())[0]
+        
+        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE last_request_date = ?", (today,))
+        active_today = (await cursor.fetchone())[0]
+        
+        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE is_premium = 1 OR permanent_premium = 1")
+        premium_users = (await cursor.fetchone())[0]
+        
+        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE permanent_premium = 1")
+        permanent_premium = (await cursor.fetchone())[0]
+        
+        cursor = await db.execute("SELECT SUM(requests_today) FROM users WHERE last_request_date = ?", (today,))
+        total_requests_today = (await cursor.fetchone())[0] or 0
+        
+        cursor = await db.execute(
+            "SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5"
+        )
+        last_users = await cursor.fetchall()
+    
+    stats_text = (
+        "📊 **Статистика бота**\n\n"
+        f"👥 **Всего пользователей:** {total_users}\n"
+        f"🆕 **Новых сегодня:** {new_today}\n"
+        f"⚡ **Активных сегодня:** {active_today}\n"
+        f"💬 **Запросов сегодня:** {total_requests_today}\n"
+        f"💎 **Premium всего:** {premium_users}\n"
+        f"   ├─ Обычный: {premium_users - permanent_premium}\n"
+        f"   └─ Навсегда: {permanent_premium}\n\n"
+        "📝 **Последние 5 пользователей:**\n"
+    )
+    
+    for user in last_users:
+        user_id, username, first_name, joined = user
+        name_display = first_name or username or "без имени"
+        stats_text += f"   • {name_display} (ID: `{user_id}`) — {joined}\n"
+    
+    await message.answer(stats_text, parse_mode="Markdown")
+
+# ========== БЭКАП БАЗЫ ==========
+@dp.message(Command("backup_db"))
+async def backup_database(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+
+    db_file = "users.db"
+    if not os.path.exists(db_file):
+        await message.answer("❌ Файл базы данных не найден.")
+        return
+
+    await message.answer_document(
+        document=FSInputFile(db_file),
+        caption="📦 Бэкап базы данных"
+    )
+
+@dp.message(Command("restore_db"))
+async def restore_database(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+
+    await message.answer("📤 Отправь мне файл базы данных (users.db)")
+
+@dp.message(F.document)
+async def handle_db_file(message: types.Message):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+
+    document = message.document
+    if not document.file_name.endswith('.db'):
+        await message.answer("❌ Это не файл базы данных (.db)")
+        return
+
+    file_info = await bot.get_file(document.file_id)
+    downloaded_file = await bot.download_file(file_info.file_path)
+
+    with open("users.db", "wb") as f:
+        f.write(downloaded_file.getvalue())
+
+    await message.answer("✅ База данных успешно восстановлена!")
+
 # ========== ОБРАБОТЧИК ФОТО ==========
 @dp.message(F.photo)
 async def handle_photo(message: types.Message, state: FSMContext):
-    """
-    Сохраняет фото и запрашивает описание задания
-    """
     user_id = message.from_user.id
     print(f"\n📸 ПОЛУЧЕНО ФОТО от {user_id}")
     
@@ -556,7 +627,6 @@ async def handle_photo(message: types.Message, state: FSMContext):
     
     await state.update_data(photo=photo_bytes)
     
-    from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"photo_{user_id}_{timestamp}.jpg"
     with open(filename, "wb") as f:
@@ -571,9 +641,7 @@ async def handle_photo(message: types.Message, state: FSMContext):
         "• 'реши уравнение'\n"
         "• 'найди дискриминант'\n"
         "• 'упрости выражение'\n"
-        "• 'найди корни'\n"
         "• 'сделай разбор слова'\n"
-        "• 'объясни правило'\n"
         "• или просто опиши словами\n\n"
         "Я запомню фото и решу задачу по твоему описанию!",
         parse_mode="Markdown"
@@ -581,9 +649,6 @@ async def handle_photo(message: types.Message, state: FSMContext):
 
 @dp.message(PhotoStates.waiting_for_task_description)
 async def process_photo_task(message: types.Message, state: FSMContext):
-    """
-    Получает описание задачи и решает её
-    """
     user_id = message.from_user.id
     task_description = message.text
     
@@ -595,7 +660,6 @@ async def process_photo_task(message: types.Message, state: FSMContext):
         await state.clear()
         return
     
-    from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"task_{user_id}_{timestamp}.jpg"
     with open(filename, "wb") as f:
@@ -612,8 +676,9 @@ async def process_photo_task(message: types.Message, state: FSMContext):
     
     processing = await message.answer("🤔 Анализирую задачу...")
     
+    mode = await get_answer_mode(user_id)
     full_task = f"На фото задача. Описание от пользователя: {task_description}. Реши задачу подробно."
-    neural_answer = await get_neural_response(subject_eng, full_task)
+    neural_answer = await get_neural_response(subject_eng, full_task, mode)
     
     await processing.delete()
     
@@ -629,56 +694,7 @@ async def process_photo_task(message: types.Message, state: FSMContext):
     
     await state.clear()
 
-# ========== КОМАНДЫ ДЛЯ БЭКАПА БАЗЫ ДАННЫХ (ТОЛЬКО ДЛЯ АДМИНА) ==========
-@dp.message(Command("backup_db"))
-async def backup_database(message: types.Message):
-    """Админ: скачать файл базы данных"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У тебя нет прав на эту команду.")
-        return
-
-    db_file = "users.db"
-    if not os.path.exists(db_file):
-        await message.answer("❌ Файл базы данных не найден.")
-        return
-
-    # Отправляем файл пользователю
-    await message.answer_document(
-        document=FSInputFile(db_file),
-        caption="📦 Бэкап базы данных"
-    )
-
-@dp.message(Command("restore_db"))
-async def restore_database(message: types.Message):
-    """Админ: загрузить новый файл базы данных"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У тебя нет прав на эту команду.")
-        return
-
-    await message.answer("📤 Отправь мне файл базы данных (users.db)")
-
-@dp.message(F.document)
-async def handle_db_file(message: types.Message):
-    """Принимает файл базы данных от админа"""
-    if message.from_user.id not in ADMIN_IDS:
-        return
-
-    document = message.document
-    if not document.file_name.endswith('.db'):
-        await message.answer("❌ Это не файл базы данных (.db)")
-        return
-
-    # Скачиваем файл
-    file_info = await bot.get_file(document.file_id)
-    downloaded_file = await bot.download_file(file_info.file_path)
-
-    # Сохраняем поверх старой базы
-    with open("users.db", "wb") as f:
-        f.write(downloaded_file.getvalue())
-
-    await message.answer("✅ База данных успешно восстановлена!")
-
-# ========== ОСНОВНОЙ ОБРАБОТЧИК СООБЩЕНИЙ ==========
+# ========== ОСНОВНОЙ ОБРАБОТЧИК ==========
 @dp.message()
 async def handle_task(message: types.Message):
     user_id = message.from_user.id
@@ -711,16 +727,10 @@ async def handle_task(message: types.Message):
         await set_user_subject(user_id, detected_subject)
         subject_eng = detected_subject
         subject_translate = {
-            "mathematics": "Математика",
-            "physics": "Физика",
-            "chemistry": "Химия",
-            "biology": "Биология",
-            "russian": "Русский язык",
-            "history": "История",
-            "geography": "География",
-            "society": "Обществознание",
-            "literature": "Литература",
-            "music": "Музыка"
+            "mathematics": "Математика", "physics": "Физика", "chemistry": "Химия",
+            "biology": "Биология", "russian": "Русский язык", "history": "История",
+            "geography": "География", "society": "Обществознание",
+            "literature": "Литература", "music": "Музыка"
         }
         subject_rus = subject_translate.get(detected_subject, detected_subject)
         print(f"🎯 Автоопределение: {subject_rus}")
@@ -733,7 +743,8 @@ async def handle_task(message: types.Message):
     print(f"📊 Счётчик: {new_count}/{limit}")
     
     thinking_msg = await message.answer("🤔 Думаю...")
-    neural_answer = await get_neural_response(subject_eng, task_text)
+    mode = await get_answer_mode(user_id)
+    neural_answer = await get_neural_response(subject_eng, task_text, mode)
     
     await thinking_msg.delete()
     
@@ -749,142 +760,7 @@ async def main():
     await init_db()
     print("🚀 Бот запускается...")
     await dp.start_polling(bot)
-# ========== СТАТИСТИКА ДЛЯ АДМИНА ==========
-@dp.message(Command("stats"))
-async def stats_command(message: types.Message):
-    """Показывает статистику бота (только для админа)"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У тебя нет прав на эту команду.")
-        return
-    
-    from datetime import datetime, timedelta
-    today = date.today().isoformat()
-    
-    async with aiosqlite.connect('users.db') as db:
-        # 1. Общее количество пользователей
-        cursor = await db.execute("SELECT COUNT(*) FROM users")
-        total_users = (await cursor.fetchone())[0]
-        
-        # 2. Новые пользователи сегодня
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM users WHERE joined_date = ?",
-            (today,)
-        )
-        new_today = (await cursor.fetchone())[0]
-        
-        # 3. Активные сегодня (кто писал сегодня)
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM users WHERE last_request_date = ?",
-            (today,)
-        )
-        active_today = (await cursor.fetchone())[0]
-        
-        # 4. Премиум-пользователи
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM users WHERE is_premium = 1 OR permanent_premium = 1"
-        )
-        premium_users = (await cursor.fetchone())[0]
-        
-        # 5. Постоянный премиум
-        cursor = await db.execute(
-            "SELECT COUNT(*) FROM users WHERE permanent_premium = 1"
-        )
-        permanent_premium = (await cursor.fetchone())[0]
-        
-        # 6. Всего запросов за сегодня
-        cursor = await db.execute(
-            "SELECT SUM(requests_today) FROM users WHERE last_request_date = ?",
-            (today,)
-        )
-        total_requests_today = (await cursor.fetchone())[0] or 0
-        
-        # 7. Последние 5 пользователей
-        cursor = await db.execute(
-            "SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5"
-        )
-        last_users = await cursor.fetchall()
-    
-    # Формируем красивый ответ
-    stats_text = (
-        "📊 **Статистика бота**\n\n"
-        f"👥 **Всего пользователей:** {total_users}\n"
-        f"🆕 **Новых сегодня:** {new_today}\n"
-        f"⚡ **Активных сегодня:** {active_today}\n"
-        f"💬 **Запросов сегодня:** {total_requests_today}\n"
-        f"💎 **Premium всего:** {premium_users}\n"
-        f"   ├─ Обычный: {premium_users - permanent_premium}\n"
-        f"   └─ Навсегда: {permanent_premium}\n\n"
-        "📝 **Последние 5 пользователей:**\n"
-    )
-    
-    for user in last_users:
-        user_id, username, first_name, joined = user
-        name_display = first_name or username or "без имени"
-        stats_text += f"   • {name_display} (ID: {user_id}) — {joined}\n"
-    
-    await message.answer(stats_text, parse_mode="Markdown")
 
-@dp.message(Command("userstats"))
-async def userstats_command(message: types.Message):
-    """Показывает детальную статистику по конкретному пользователю (только для админа)"""
-    if message.from_user.id not in ADMIN_IDS:
-        await message.answer("❌ У тебя нет прав на эту команду.")
-        return
-    
-    args = message.text.split()
-    if len(args) < 2:
-        await message.answer("❌ Укажи ID пользователя. Пример: /userstats 123456789")
-        return
-    
-    try:
-        target_id = int(args[1])
-    except ValueError:
-        await message.answer("❌ ID должен быть числом.")
-        return
-    
-    async with aiosqlite.connect('users.db') as db:
-        cursor = await db.execute(
-            "SELECT * FROM users WHERE user_id = ?",
-            (target_id,)
-        )
-        user = await cursor.fetchone()
-    
-    if not user:
-        await message.answer(f"❌ Пользователь с ID {target_id} не найден.")
-        return
-    
-    # Распаковываем данные (порядок полей из твоей БД)
-    user_data = {
-        'user_id': user[0],
-        'username': user[1] or 'нет',
-        'first_name': user[2] or 'нет',
-        'last_name': user[3] or 'нет',
-        'requests_today': user[4],
-        'last_request_date': user[5],
-        'is_premium': '✅ Да' if user[6] else '❌ Нет',
-        'premium_until': user[7] or 'бессрочно' if user[8] else user[7] or 'не активен',
-        'permanent': '✅ Да' if user[8] else '❌ Нет',
-        'joined_date': user[9],
-        'subject': user[10]
-    }
-    
-    detail_text = (
-        f"📋 **Данные пользователя**\n\n"
-        f"🆔 ID: `{user_data['user_id']}`\n"
-        f"👤 Юзернейм: @{user_data['username']}\n"
-        f"📝 Имя: {user_data['first_name']} {user_data['last_name']}\n"
-        f"📅 Зарегистрирован: {user_data['joined_date']}\n\n"
-        f"📊 **Активность**\n"
-        f"   • Запросов сегодня: {user_data['requests_today']}\n"
-        f"   • Последний запрос: {user_data['last_request_date']}\n"
-        f"   • Текущий предмет: {user_data['subject']}\n\n"
-        f"💎 **Premium**\n"
-        f"   • Статус: {user_data['is_premium']}\n"
-        f"   • Постоянный: {user_data['permanent']}\n"
-        f"   • Действует до: {user_data['premium_until']}"
-    )
-    
-    await message.answer(detail_text, parse_mode="Markdown")
 if __name__ == "__main__":
     print("🟢 Точка входа")
     asyncio.run(main())
