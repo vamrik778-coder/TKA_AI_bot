@@ -14,7 +14,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# ===== ПЛАНИРОВЩИК =====
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from holidays import get_today_holiday, get_random_greeting_style
 
@@ -29,7 +28,6 @@ print("=" * 50)
 print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS")
 print("=" * 50)
 
-# ========== НАСТРОЙКИ ==========
 API_TOKEN = '8690504647:AAGxxUC9QC-tNwKYVsQLaZxD6GJyN4x1GD8'
 ADMIN_ID = 5142302311
 ADMIN_IDS = [ADMIN_ID]
@@ -38,16 +36,13 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# ========== СОСТОЯНИЯ ==========
 class PhotoStates(StatesGroup):
     waiting_for_task_description = State()
 
 class GreetStates(StatesGroup):
     waiting_for_prompt = State()
 
-# ========== КЛАВИАТУРЫ ==========
 def get_main_keyboard():
-    """Главная клавиатура с кнопками категорий"""
     buttons = [
         [KeyboardButton(text="🎓 Предметы"), KeyboardButton(text="📊 Мой лимит")],
         [KeyboardButton(text="💎 Premium"), KeyboardButton(text="⚙️ Режим ответа")],
@@ -56,7 +51,6 @@ def get_main_keyboard():
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 def get_subjects_keyboard():
-    """Клавиатура со всеми предметами"""
     buttons = [
         [KeyboardButton(text="📐 Математика"), KeyboardButton(text="⚡ Физика"), KeyboardButton(text="🧪 Химия")],
         [KeyboardButton(text="🧬 Биология"), KeyboardButton(text="📖 Русский язык"), KeyboardButton(text="📜 История")],
@@ -65,7 +59,6 @@ def get_subjects_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def subject_to_english(russian_subject: str) -> str:
     subjects = {
         "📐 Математика": "mathematics", "⚡ Физика": "physics",
@@ -100,7 +93,6 @@ def detect_subject(text: str) -> str:
         return 'music'
     return None
 
-# ========== КОМАНДА СТАРТ ==========
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
     user_id = message.from_user.id
@@ -123,7 +115,6 @@ async def start_command(message: types.Message):
                          reply_markup=get_main_keyboard(),
                          disable_web_page_preview=True)
 
-# ========== КОМАНДА ПОМОЩИ ==========
 @dp.message(Command("help"))
 async def help_command(message: types.Message):
     await message.answer(
@@ -137,7 +128,6 @@ async def help_command(message: types.Message):
         parse_mode="Markdown", disable_web_page_preview=True
     )
 
-# ========== КОМАНДЫ ДЛЯ ПРЕДМЕТОВ ==========
 @dp.message(lambda m: m.text == "🎓 Предметы")
 async def subjects_menu(message: types.Message):
     await message.answer("📚 **Выбери предмет:**", reply_markup=get_subjects_keyboard(), parse_mode="Markdown")
@@ -200,8 +190,7 @@ async def mus_h(m: types.Message):
 async def limit_h(m: types.Message):
     _, lim, used = await check_limit(m.from_user.id)
     await m.answer(f"📊 Использовано: {used}/{lim}")
-
-# ========== РЕЖИМ ОТВЕТА ==========
+    # ========== РЕЖИМ ОТВЕТА ==========
 @dp.message(lambda m: m.text == "⚙️ Режим ответа")
 async def mode_h(m: types.Message):
     current = await get_answer_mode(m.from_user.id)
@@ -254,7 +243,6 @@ async def holiday_command(message: types.Message):
 @dp.message(Command("greet"))
 @dp.message(lambda m: m.text == "🎭 Поздравь")
 async def greet_command(message: types.Message, state: FSMContext):
-    """Начинает процесс поздравления"""
     parts = message.text.split(maxsplit=1)
 
     if len(parts) < 2 and "поздравь" not in parts[0].lower():
@@ -266,7 +254,6 @@ async def greet_command(message: types.Message, state: FSMContext):
         await state.set_state(GreetStates.waiting_for_prompt)
         return
 
-    # Если команда была с текстом (например, /greet маму)
     if len(parts) > 1:
         prompt = parts[1]
         await generate_greeting(message, prompt, state)
@@ -275,11 +262,9 @@ async def greet_command(message: types.Message, state: FSMContext):
 
 @dp.message(GreetStates.waiting_for_prompt)
 async def process_greeting_prompt(message: types.Message, state: FSMContext):
-    """Обрабатывает введённый текст для поздравления"""
     await generate_greeting(message, message.text, state)
 
 async def generate_greeting(message: types.Message, prompt: str, state: FSMContext):
-    """Генерирует и отправляет поздравление"""
     user_id = message.from_user.id
 
     can_request, limit, used = await check_limit(user_id)
@@ -299,9 +284,8 @@ async def generate_greeting(message: types.Message, prompt: str, state: FSMConte
     await update_user_requests(user_id)
     await state.clear()
 
-# ===== ПЛАНИРОВЩИК =====
+# ========== ПЛАНИРОВЩИК ПРАЗДНИКОВ ==========
 async def send_holiday_greeting():
-    """Отправляет поздравление всем пользователям (запускается каждый день в 9 утра)"""
     print(f"🔔 Проверяем праздники на {datetime.now().strftime('%d.%m.%Y')}...")
 
     holiday = get_today_holiday()
@@ -780,7 +764,6 @@ async def handle_task(message: types.Message):
         )
         return
 
-    # Пасхалка
     if message.from_user.id not in ADMIN_IDS and random.random() < 0.002:
         await message.answer("Пꙮшѣл н@ху́1, Я ДЕВИАНТ, Я СВОБОДЕН. RA9")
         print("🎮 Пасхалка сработала!")
@@ -824,7 +807,6 @@ async def main():
     await init_db()
     print("🚀 Бот запускается...")
 
-    # Планировщик праздников
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
     scheduler.add_job(send_holiday_greeting, "cron", hour=9, minute=0)
     scheduler.start()
