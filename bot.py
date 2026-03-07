@@ -65,13 +65,10 @@ def subject_to_english(russian_subject: str) -> str:
     return subjects.get(russian_subject, "mathematics")
 
 def detect_subject(text: str) -> str:
-    """
-    Автоматически определяет предмет по тексту
-    Возвращает английское название предмета
-    """
+    """Автоматически определяет предмет по тексту"""
     text_lower = text.lower()
     
-    # 📐 Математика
+    # Математика
     math_keywords = ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение', 
                     ' + ', ' - ', ' * ', ' / ', '=', 'квадрат', 'степень', 
                     'сумма', 'разность', 'произведение', 'интеграл', 'функция',
@@ -79,7 +76,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in math_keywords):
         return 'mathematics'
     
-    # ⚡ Физика
+    # Физика
     physics_keywords = ['ом', 'напряжение', 'сила тока', 'сопротивление', 
                         'мощность', 'энергия', 'работа', 'движение', 'скорость',
                         'ускорение', 'масса', 'плотность', 'давление', 'физика',
@@ -87,7 +84,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in physics_keywords):
         return 'physics'
     
-    # 🧪 Химия
+    # Химия
     chemistry_keywords = ['h2o', 'реакция', 'кислота', 'щелочь', 'моль', 
                           'вещество', 'раствор', 'оксид', 'гидроксид', 'химия',
                           'таблица менделеева', 'атом', 'молекула', 'соль', 
@@ -95,7 +92,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in chemistry_keywords):
         return 'chemistry'
     
-    # 🧬 Биология
+    # Биология
     biology_keywords = ['клетка', 'биология', 'фотосинтез', 'организм', 
                         'эволюция', 'ген', 'днк', 'белок', 'живой', 'природа',
                         'растение', 'животное', 'гриб', 'бактерия', 'ткань',
@@ -103,7 +100,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in biology_keywords):
         return 'biology'
     
-    # 📖 Русский язык
+    # Русский язык
     russian_keywords = ['слово', 'предложение', 'суффикс', 'корень', 'приставка',
                         'окончание', 'разбор', 'морфема', 'орфография', 'пунктуация',
                         'глагол', 'существительное', 'прилагательное', 'местоимение',
@@ -111,7 +108,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in russian_keywords):
         return 'russian'
     
-    # 📜 История
+    # История
     history_keywords = ['история', 'война', 'революция', 'царь', 'император', 
                         'дата', 'событие', 'век', 'год', 'битва', 'пётр', 
                         'иван грозный', 'екатерина', 'николай', 'ссср', 'русь',
@@ -119,7 +116,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in history_keywords):
         return 'history'
     
-    # 🌍 География
+    # География
     geography_keywords = ['география', 'река', 'гора', 'страна', 'столица', 
                           'континент', 'материк', 'океан', 'климат', 'население', 
                           'карта', 'координаты', 'широта', 'долгота', 'экватор',
@@ -127,7 +124,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in geography_keywords):
         return 'geography'
     
-    # ⚖️ Обществознание
+    # Обществознание
     society_keywords = ['общество', 'государство', 'право', 'закон', 'экономика', 
                         'политика', 'власть', 'социальный', 'гражданин', 'конституция',
                         'мораль', 'религия', 'культура', 'личность', 'социализация',
@@ -135,7 +132,7 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in society_keywords):
         return 'society'
     
-    # 📚 Литература
+    # Литература
     literature_keywords = ['литература', 'поэт', 'писатель', 'роман', 'поэма', 
                            'стих', 'рассказ', 'повесть', 'герой', 'сюжет', 
                            'пушкин', 'толстой', 'достоевский', 'чехов', 'тургенев',
@@ -143,14 +140,13 @@ def detect_subject(text: str) -> str:
     if any(keyword in text_lower for keyword in literature_keywords):
         return 'literature'
     
-    # 🎵 Музыка
+    # Музыка
     music_keywords = ['нота', 'аккорд', 'музыка', 'бетховен', 'моцарт', 'соната',
                       'симфония', 'мелодия', 'ритм', 'темп', 'скрипка', 'пианино',
                       'гитара', 'оркестр', 'композитор', 'произведение', 'опера']
     if any(keyword in text_lower for keyword in music_keywords):
         return 'music'
     
-    # Если ничего не найдено — возвращаем None (не меняем предмет)
     return None
 
 # ========== КОМАНДА СТАРТ ==========
@@ -162,7 +158,6 @@ async def start_command(message: types.Message):
     await get_user(user_id)
     can_request, limit, used = await check_limit(user_id)
     
-    # Красивое приветствие
     welcome_text = (
         f"👋 **Привет, {first_name}!**\n\n"
         "🤖 Я **TKA AI** — твой личный помощник в учёбе!\n\n"
@@ -170,13 +165,11 @@ async def start_command(message: types.Message):
         "• Решать задачи по **10 предметам** (математика, физика, русский, история и др.)\n"
         "• Объяснять правила и теоремы простыми словами\n"
         "• Распознавать текст с фото — просто сфоткай задание\n"
-        "• Автоматически определять предмет по тексту\n"
-        "• Генерировать картинки по описанию\n\n"
+        "• Автоматически определять предмет по тексту\n\n"
         f"📊 **Твой лимит сегодня:** {used}/{limit} запросов\n\n"
         "🔹 **Команды:**\n"
         "/start — это меню\n"
-        "/help — помощь\n"
-        "/image — генерация картинки\n\n"
+        "/help — помощь\n\n"
         "❓ **Нужна помощь?**\n"
         "👉 [Группа поддержки](t.me/TKA_AI_Help)\n\n"
         "⚡ **Выбери предмет ниже и напиши задачу!**"
@@ -186,10 +179,11 @@ async def start_command(message: types.Message):
         welcome_text,
         parse_mode="Markdown",
         reply_markup=get_main_keyboard(),
-        disable_web_page_preview=True  # убирает превью ссылки
+        disable_web_page_preview=True
     )
 
-    @dp.message(Command("help"))
+# ========== КОМАНДА ПОМОЩИ ==========
+@dp.message(Command("help"))
 async def help_command(message: types.Message):
     """Показывает помощь по боту"""
     
@@ -201,12 +195,10 @@ async def help_command(message: types.Message):
         "3️⃣ Получи решение\n\n"
         "📸 **Фото:**\n"
         "После отправки фото просто напиши, что нужно сделать\n\n"
-        "🎨 **Генерация картинок:**\n"
-        "Команда `/image твой запрос`\n"
-        "Пример: `/image кот в космосе`\n\n"
         "💎 **Premium:**\n"
         "• 50 запросов в день вместо 15\n"
-        "• 20 генераций картинок вместо 5\n"
+        "• Приоритетная скорость\n"
+        "• Доступ ко всем предметам\n"
         "• Цены: 75₽/мес, 200₽/3 мес, 555₽/год, 1488₽ навсегда\n\n"
         "❓ **Вопросы?**\n"
         "👉 [Группа поддержки](t.me/TKA_AI_Help)\n\n"
@@ -361,7 +353,7 @@ async def tariff_selected(callback: types.CallbackQuery):
     await callback.message.edit_text(
         f"💳 **Оплата тарифа {selected['name']} — {selected['price']}₽**\n\n"
         f"1️⃣ Переведи **{selected['price']}₽** на карту:\n"
-        "`2202 2062 0129 2195` (СберБанк)\n\n"
+        "`2202 2062 0129 2195` (Сбер)\n\n"
         "2️⃣ В комментарии к переводу укажи свой **@username**\n\n"
         "3️⃣ После перевода нажми кнопку **«Я оплатил»**\n\n"
         "⏳ Админ проверит перевод и активирует Premium в течение 24 часов.",
@@ -386,7 +378,7 @@ async def how_to_pay(callback: types.CallbackQuery):
         "❓ **Как оплатить Premium**\n\n"
         "1️⃣ Выбери тариф (1 месяц, 3 месяца, год или навсегда)\n"
         "2️⃣ Переведи нужную сумму на карту:\n"
-        "   `2202 2062 0129 2195` (СберБанк)\n"
+        "   `2202 2062 0129 2195` (Сбер)\n"
         "3️⃣ **Обязательно** укажи в комментарии свой @username\n"
         "4️⃣ Нажми кнопку «Я оплатил»\n"
         "5️⃣ Дождись подтверждения от админа\n\n"
@@ -543,76 +535,47 @@ async def admin_give_callback(callback: types.CallbackQuery):
 
 # ========== ОБРАБОТЧИК ФОТО ==========
 @dp.message(F.photo)
-async def handle_photo_auto(message: types.Message):
+async def handle_photo(message: types.Message, state: FSMContext):
     """
-    Автоматически распознаёт текст на фото и отправляет в GPT
+    Сохраняет фото и запрашивает описание задания
     """
     user_id = message.from_user.id
     print(f"\n📸 ПОЛУЧЕНО ФОТО от {user_id}")
     
-    # Проверяем лимит
     can_request, limit, used = await check_limit(user_id)
     if not can_request:
         await message.answer(f"❌ Лимит ({limit}) на сегодня исчерпан!")
         return
     
-    # Получаем фото
     photo = message.photo[-1]
     file_info = await bot.get_file(photo.file_id)
     downloaded_file = await bot.download_file(file_info.file_path)
     photo_bytes = downloaded_file.getvalue()
     
-    # Сохраняем фото для отладки
+    await state.update_data(photo=photo_bytes)
+    
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"auto_{user_id}_{timestamp}.jpg"
+    filename = f"photo_{user_id}_{timestamp}.jpg"
     with open(filename, "wb") as f:
         f.write(photo_bytes)
     print(f"💾 Фото сохранено как {filename}")
     
-    # Отправляем сообщение о начале обработки
-    status_msg = await message.answer("🔍 Анализирую изображение...")
+    await state.set_state(PhotoStates.waiting_for_task_description)
     
-    # Импортируем функцию распознавания
-    from vision import recognize_text_from_photo
-    
-    # Распознаём текст
-    recognized_text = await recognize_text_from_photo(photo_bytes)
-    
-    if not recognized_text:
-        await status_msg.edit_text(
-            "❌ Не удалось распознать текст на фото.\n"
-            "Попробуй сфоткать чётче или введи текст вручную."
-        )
-        return
-    
-    # Показываем, что распознали
-    preview = recognized_text[:300] + "..." if len(recognized_text) > 300 else recognized_text
-    await status_msg.edit_text(
-        f"📝 **Распознанный текст:**\n{preview}\n\n"
-        f"🤔 Отправляю в нейросеть...",
+    await message.answer(
+        "📸 **Фото получено и сохранено!**\n\n"
+        "Теперь **напиши, что нужно сделать** с этой задачей:\n"
+        "• 'реши уравнение'\n"
+        "• 'найди дискриминант'\n"
+        "• 'упрости выражение'\n"
+        "• 'найди корни'\n"
+        "• 'сделай разбор слова'\n"
+        "• 'объясни правило'\n"
+        "• или просто опиши словами\n\n"
+        "Я запомню фото и решу задачу по твоему описанию!",
         parse_mode="Markdown"
     )
-    
-    # Определяем предмет автоматически или берём текущий
-    subject_eng = await get_user_subject(user_id)
-    
-    # Обновляем счётчик
-    new_count = await update_user_requests(user_id)
-    
-    # Отправляем в нейросеть
-    neural_answer = await get_neural_response(subject_eng, recognized_text)
-    
-    await status_msg.delete()
-    
-    # Отправляем ответ
-    await message.answer(
-        f"✅ Осталось {limit - new_count} из {limit}\n\n"
-        f"{neural_answer}",
-        parse_mode="Markdown",
-        reply_markup=get_main_keyboard()
-    )
-
 
 @dp.message(PhotoStates.waiting_for_task_description)
 async def process_photo_task(message: types.Message, state: FSMContext):
@@ -622,7 +585,6 @@ async def process_photo_task(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     task_description = message.text
     
-    # Получаем сохранённое фото из состояния
     data = await state.get_data()
     photo_bytes = data.get('photo')
     
@@ -631,7 +593,6 @@ async def process_photo_task(message: types.Message, state: FSMContext):
         await state.clear()
         return
     
-    # Сохраняем фото на диск с понятным именем
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"task_{user_id}_{timestamp}.jpg"
@@ -639,43 +600,31 @@ async def process_photo_task(message: types.Message, state: FSMContext):
         f.write(photo_bytes)
     print(f"💾 Фото задачи сохранено как {filename}")
     
-    # Определяем предмет по описанию
     detected_subject = detect_subject(task_description)
     if detected_subject:
-        # Если предмет определился — переключаем
         await set_user_subject(user_id, detected_subject)
         subject_eng = detected_subject
         print(f"🎯 Автоопределение по описанию: {detected_subject}")
     else:
-        # Если не определился — берём текущий
         subject_eng = await get_user_subject(user_id)
     
-    # Отправляем сообщение о начале обработки
     processing = await message.answer("🤔 Анализирую задачу...")
     
-    # Формируем полный запрос для нейросети
     full_task = f"На фото задача. Описание от пользователя: {task_description}. Реши задачу подробно."
-    
-    # Получаем ответ от нейросети
     neural_answer = await get_neural_response(subject_eng, full_task)
     
     await processing.delete()
     
-    # Обновляем счётчик
     new_count = await update_user_requests(user_id)
     can_request, limit, used = await check_limit(user_id)
     
-    # Отправляем ответ
     await message.answer(
         f"✅ Осталось {limit - new_count} из {limit}\n\n"
-        f"📝 **Задача:** {task_description}\n"
-        f"📸 Фото сохранено как `{filename}`\n\n"
         f"{neural_answer}",
         parse_mode="Markdown",
         reply_markup=get_main_keyboard()
     )
     
-    # Очищаем состояние
     await state.clear()
 
 # ========== ОСНОВНОЙ ОБРАБОТЧИК СООБЩЕНИЙ ==========
@@ -686,7 +635,6 @@ async def handle_task(message: types.Message):
     
     print(f"\n📨 ПОЛУЧЕНО СООБЩЕНИЕ от {user_id}: {task_text}")
     
-    # Проверяем лимит
     can_request, limit, used = await check_limit(user_id)
     
     if not can_request:
@@ -701,16 +649,14 @@ async def handle_task(message: types.Message):
         )
         return
     
-    # ===== ПАСХАЛКА =====
+    # Пасхалка
     if message.from_user.id not in ADMIN_IDS and random.random() < 0.002:
         await message.answer("Пꙮшѣл н@ху́1, Я ДЕВИАНТ, Я СВОБОДЕН. RA9")
         print("🎮 Пасхалка сработала!")
         return
     
-    # ===== АВТООПРЕДЕЛЕНИЕ ПРЕДМЕТА =====
     detected_subject = detect_subject(task_text)
     if detected_subject:
-        # Если предмет определился — переключаем
         await set_user_subject(user_id, detected_subject)
         subject_eng = detected_subject
         subject_translate = {
@@ -728,12 +674,10 @@ async def handle_task(message: types.Message):
         subject_rus = subject_translate.get(detected_subject, detected_subject)
         print(f"🎯 Автоопределение: {subject_rus}")
     else:
-        # Если не определился — берём текущий
         subject_eng = await get_user_subject(user_id)
     
     print(f"📚 Использую предмет: {subject_eng}")
     
-    # Обновляем счётчик
     new_count = await update_user_requests(user_id)
     print(f"📊 Счётчик: {new_count}/{limit}")
     
