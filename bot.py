@@ -6,7 +6,7 @@ from datetime import date, datetime
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import (
-    ReplyKeyboardMarkup, KeyboardButton, 
+    ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton,
     FSInputFile
 )
@@ -14,15 +14,19 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
+# ===== ПЛАНИРОВЩИК =====
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from holidays import get_today_holiday, get_random_greeting_style
+
 from database import (
-    init_db, check_limit, update_user_requests, 
+    init_db, check_limit, update_user_requests,
     get_user, set_user_subject, get_user_subject,
     activate_premium, get_answer_mode, set_answer_mode
 )
 from neural import get_neural_response
 
 print("=" * 50)
-print("STARTING TKA AI BOT WITH 10 SUBJECTS AND 3 MODES")
+print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS")
 print("=" * 50)
 
 # ========== НАСТРОЙКИ ==========
@@ -34,20 +38,23 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# ========== СОСТОЯНИЯ ДЛЯ ФОТО ==========
+# ========== СОСТОЯНИЯ ==========
 class PhotoStates(StatesGroup):
     waiting_for_task_description = State()
 
-# ========== ГЛАВНАЯ КЛАВИАТУРА ==========
+class GreetStates(StatesGroup):
+    waiting_for_prompt = State()
+
+# ========== КЛАВИАТУРЫ ==========
 def get_main_keyboard():
     """Главная клавиатура с кнопками категорий"""
     buttons = [
         [KeyboardButton(text="🎓 Предметы"), KeyboardButton(text="📊 Мой лимит")],
-        [KeyboardButton(text="💎 Premium"), KeyboardButton(text="⚙️ Режим ответа")]
+        [KeyboardButton(text="💎 Premium"), KeyboardButton(text="⚙️ Режим ответа")],
+        [KeyboardButton(text="🎉 Праздник сегодня"), KeyboardButton(text="🎭 Поздравь")]
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# ========== КЛАВИАТУРА С ПРЕДМЕТАМИ ==========
 def get_subjects_keyboard():
     """Клавиатура со всеми предметами"""
     buttons = [
@@ -58,189 +65,39 @@ def get_subjects_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
-# ========== ОБРАБОТЧИК КНОПКИ ПРЕДМЕТЫ ==========
-@dp.message(lambda message: message.text == "🎓 Предметы")
-async def subjects_menu(message: types.Message):
-    """Показывает меню с выбором предметов"""
-    await message.answer(
-        "📚 **Выбери предмет:**",
-        reply_markup=get_subjects_keyboard(),
-        parse_mode="Markdown"
-    )
-
-# ========== ОБРАБОТЧИК КНОПКИ НАЗАД ==========
-@dp.message(lambda message: message.text == "🔙 Назад в главное меню")
-async def back_to_main(message: types.Message):
-    """Возвращает в главное меню"""
-    await message.answer(
-        "🏠 **Главное меню**",
-        reply_markup=get_main_keyboard(),
-        parse_mode="Markdown"
-    )
-
-# ========== ОБРАБОТЧИКИ ПРЕДМЕТОВ (ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ) ==========
-@dp.message(lambda message: message.text == "📐 Математика")
-async def math_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "📐 Ты выбрал Математику. Напиши пример или задачу!",
-        reply_markup=get_main_keyboard()  # Возвращаем в главное меню
-    )
-
-@dp.message(lambda message: message.text == "⚡ Физика")
-async def physics_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "⚡ Физика. Напиши условие задачи!",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "🧪 Химия")
-async def chemistry_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "🧪 Химия. Жду уравнение или задачу!",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "🧬 Биология")
-async def bio_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "🧬 Биология. О чём расскажем?",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "📖 Русский язык")
-async def russian_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "📖 Русский язык. Присылай слово или предложение!",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "📜 История")
-async def history_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "📜 История. О каком событии или личности расскажем?",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "🌍 География")
-async def geography_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "🌍 География. Спрашивай о странах, реках, горах!",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "⚖️ Обществознание")
-async def society_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "⚖️ Обществознание. Что интересует: право, экономика, политика?",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "📚 Литература")
-async def literature_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "📚 Литература. О каком произведении или авторе расскажем?",
-        reply_markup=get_main_keyboard()
-    )
-
-@dp.message(lambda message: message.text == "🎵 Музыка")
-async def music_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer(
-        "🎵 Музыка. Спроси про композитора или произведение!",
-        reply_markup=get_main_keyboard()
-    )
-
-# ========== ПЕРЕВОД НАЗВАНИЙ ПРЕДМЕТОВ ==========
+# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def subject_to_english(russian_subject: str) -> str:
-    """Переводит название предмета с русского на английский для базы данных"""
     subjects = {
-        "📐 Математика": "mathematics",
-        "⚡ Физика": "physics",
-        "🧪 Химия": "chemistry",
-        "🧬 Биология": "biology",
-        "📖 Русский язык": "russian",
-        "📜 История": "history",
-        "🌍 География": "geography",
-        "⚖️ Обществознание": "society",
-        "📚 Литература": "literature",
-        "🎵 Музыка": "music"
+        "📐 Математика": "mathematics", "⚡ Физика": "physics",
+        "🧪 Химия": "chemistry", "🧬 Биология": "biology",
+        "📖 Русский язык": "russian", "📜 История": "history",
+        "🌍 География": "geography", "⚖️ Обществознание": "society",
+        "📚 Литература": "literature", "🎵 Музыка": "music"
     }
     return subjects.get(russian_subject, "mathematics")
 
-# ========== АВТООПРЕДЕЛЕНИЕ ПРЕДМЕТА ==========
 def detect_subject(text: str) -> str:
-    """Автоматически определяет предмет по тексту запроса"""
-    text_lower = text.lower()
-    
-    # Математика
-    math_keywords = ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение']
-    if any(keyword in text_lower for keyword in math_keywords):
+    tl = text.lower()
+    if any(k in tl for k in ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение']):
         return 'mathematics'
-    
-    # Физика
-    physics_keywords = ['ом', 'напряжение', 'сила тока', 'физика']
-    if any(keyword in text_lower for keyword in physics_keywords):
+    if any(k in tl for k in ['ом', 'напряжение', 'сила тока', 'физика']):
         return 'physics'
-    
-    # Химия
-    chemistry_keywords = ['h2o', 'реакция', 'кислота', 'химия']
-    if any(keyword in text_lower for keyword in chemistry_keywords):
+    if any(k in tl for k in ['h2o', 'реакция', 'кислота', 'химия']):
         return 'chemistry'
-    
-    # Биология
-    biology_keywords = ['клетка', 'биология', 'фотосинтез', 'организм']
-    if any(keyword in text_lower for keyword in biology_keywords):
+    if any(k in tl for k in ['клетка', 'биология', 'фотосинтез']):
         return 'biology'
-    
-    # Русский язык
-    russian_keywords = ['слово', 'предложение', 'суффикс', 'корень', 'разбор']
-    if any(keyword in text_lower for keyword in russian_keywords):
+    if any(k in tl for k in ['слово', 'предложение', 'суффикс', 'корень', 'разбор']):
         return 'russian'
-    
-    # История
-    history_keywords = ['история', 'война', 'революция', 'царь', 'дата']
-    if any(keyword in text_lower for keyword in history_keywords):
+    if any(k in tl for k in ['история', 'война', 'революция', 'царь']):
         return 'history'
-    
-    # География
-    geography_keywords = ['география', 'река', 'гора', 'страна', 'столица']
-    if any(keyword in text_lower for keyword in geography_keywords):
+    if any(k in tl for k in ['география', 'река', 'гора', 'страна']):
         return 'geography'
-    
-    # Обществознание
-    society_keywords = ['общество', 'государство', 'право', 'экономика']
-    if any(keyword in text_lower for keyword in society_keywords):
+    if any(k in tl for k in ['общество', 'государство', 'право', 'экономика']):
         return 'society'
-    
-    # Литература
-    literature_keywords = ['литература', 'поэт', 'писатель', 'роман']
-    if any(keyword in text_lower for keyword in literature_keywords):
+    if any(k in tl for k in ['литература', 'поэт', 'писатель', 'роман']):
         return 'literature'
-    
-    # Музыка
-    music_keywords = ['нота', 'аккорд', 'музыка', 'бетховен']
-    if any(keyword in text_lower for keyword in music_keywords):
+    if any(k in tl for k in ['нота', 'аккорд', 'музыка', 'бетховен']):
         return 'music'
-    
     return None
 
 # ========== КОМАНДА СТАРТ ==========
@@ -248,215 +105,260 @@ def detect_subject(text: str) -> str:
 async def start_command(message: types.Message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name
-    
     await get_user(user_id)
     can_request, limit, used = await check_limit(user_id)
-    
     welcome_text = (
         f"👋 **Привет, {first_name}!**\n\n"
-        "🤖 Я **TKA AI** — твой личный помощник в учёбе!\n\n"
+        "🤖 Я **TKA AI** — твой помощник в учёбе!\n\n"
         "📚 **Что я умею:**\n"
-        "• Решать задачи по **10 предметам**\n"
-        "• Объяснять правила простыми словами\n"
-        "• Распознавать текст с фото\n"
-        "• Автоматически определять предмет\n"
-        "• Говорить в 3 режимах (полный, краткий, пупсик)\n\n"
-        f"📊 **Твой лимит сегодня:** {used}/{limit} запросов\n\n"
-        "🔹 **Команды:**\n"
-        "/start — это меню\n"
-        "/help — помощь\n"
-        "/stats — статистика (только для админа)\n\n"
-        "❓ **Нужна помощь?**\n"
-        "👉 [Группа поддержки](t.me/TKA_AI_Help)\n\n"
-        "⚡ **Выбери предмет ниже и напиши задачу!**"
+        "• 10 предметов, фото, автоопределение\n"
+        "• 3 режима (полный, краткий, пупсик)\n"
+        "• 🎉 Поздравляю с праздниками\n"
+        "• 🎭 Генерирую поздравления\n\n"
+        f"📊 Твой лимит: {used}/{limit}\n\n"
+        "❓ [Группа поддержки](t.me/TKA_AI_Help)\n"
+        "⚡ Выбери предмет ниже или нажми кнопку!"
     )
-    
-    await message.answer(
-        welcome_text,
-        parse_mode="Markdown",
-        reply_markup=get_main_keyboard(),
-        disable_web_page_preview=True
-    )
+    await message.answer(welcome_text, parse_mode="Markdown",
+                         reply_markup=get_main_keyboard(),
+                         disable_web_page_preview=True)
 
 # ========== КОМАНДА ПОМОЩИ ==========
 @dp.message(Command("help"))
 async def help_command(message: types.Message):
-    help_text = (
-        "🆘 **Помощь по TKA AI**\n\n"
-        "📌 **Как пользоваться:**\n"
-        "1️⃣ Выбери предмет в меню ниже\n"
-        "2️⃣ Напиши задачу или отправь фото\n"
-        "3️⃣ Получи решение\n\n"
-        "⚙️ **Режимы ответа:**\n"
-        "• 📖 Полный — подробное объяснение с примерами\n"
-        "• ⚡ Краткий — только ответ и краткое решение\n"
-        "• 🥰 Пупсик — ласковый и милый стиль общения\n\n"
-        "💎 **Premium подписка:**\n"
-        "• 50 запросов в день вместо 15\n"
-        "• Приоритетная скорость ответов\n"
-        "• Доступ ко всем предметам\n"
-        "• Цены: 75₽/мес, 200₽/3 мес, 555₽/год, 1488₽ навсегда\n\n"
-        "❓ **Вопросы?**\n"
-        "👉 [Группа поддержки](t.me/TKA_AI_Help)\n\n"
-        "⚡ **Удачи в учёбе!**"
-    )
-    
     await message.answer(
-        help_text,
-        parse_mode="Markdown",
-        disable_web_page_preview=True
+        "🆘 **Помощь**\n\n"
+        "📌 Выбери предмет, пиши или шли фото.\n"
+        "⚙️ Режимы: 📖 полный, ⚡ краткий, 🥰 пупсик.\n"
+        "🎉 Праздники: проверяю сам или по команде `/holiday`\n"
+        "🎭 Поздравления: `/greet бабушку с 8 марта`\n"
+        "💎 Premium: 75₽/мес, 200₽/3мес, 555₽/год, 1488₽ навсегда.\n"
+        "❓ @TKA_AI_Help",
+        parse_mode="Markdown", disable_web_page_preview=True
     )
 
-# ========== КНОПКИ ПРЕДМЕТОВ ==========
-@dp.message(lambda message: message.text == "📐 Математика")
-async def math_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("📐 Ты выбрал Математику. Напиши пример или задачу!")
+# ========== КОМАНДЫ ДЛЯ ПРЕДМЕТОВ ==========
+@dp.message(lambda m: m.text == "🎓 Предметы")
+async def subjects_menu(message: types.Message):
+    await message.answer("📚 **Выбери предмет:**", reply_markup=get_subjects_keyboard(), parse_mode="Markdown")
 
-@dp.message(lambda message: message.text == "⚡ Физика")
-async def physics_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("⚡ Физика. Напиши условие задачи!")
+@dp.message(lambda m: m.text == "🔙 Назад в главное меню")
+async def back_to_main(message: types.Message):
+    await message.answer("🏠 **Главное меню**", reply_markup=get_main_keyboard(), parse_mode="Markdown")
 
-@dp.message(lambda message: message.text == "🧪 Химия")
-async def chemistry_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("🧪 Химия. Жду уравнение или задачу!")
+@dp.message(lambda m: m.text == "📐 Математика")
+async def math_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("📐 Ты выбрал Математику. Напиши пример!", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "🧬 Биология")
-async def bio_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("🧬 Биология. О чём расскажем?")
+@dp.message(lambda m: m.text == "⚡ Физика")
+async def phys_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("⚡ Физика. Жду задачу!", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "📖 Русский язык")
-async def russian_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("📖 Русский язык. Присылай слово или предложение!")
+@dp.message(lambda m: m.text == "🧪 Химия")
+async def chem_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("🧪 Химия. Жду уравнение!", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "📜 История")
-async def history_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("📜 История. О каком событии или личности расскажем?")
+@dp.message(lambda m: m.text == "🧬 Биология")
+async def bio_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("🧬 Биология. О чём расскажем?", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "🌍 География")
-async def geography_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("🌍 География. Спрашивай о странах, реках, горах!")
+@dp.message(lambda m: m.text == "📖 Русский язык")
+async def rus_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("📖 Русский язык. Присылай слово!", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "⚖️ Обществознание")
-async def society_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("⚖️ Обществознание. Что интересует: право, экономика, политика?")
+@dp.message(lambda m: m.text == "📜 История")
+async def hist_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("📜 История. О ком/чём?", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "📚 Литература")
-async def literature_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("📚 Литература. О каком произведении или авторе расскажем?")
+@dp.message(lambda m: m.text == "🌍 География")
+async def geo_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("🌍 География. Спрашивай!", reply_markup=get_main_keyboard())
 
-@dp.message(lambda message: message.text == "🎵 Музыка")
-async def music_handler(message: types.Message):
-    user_id = message.from_user.id
-    await set_user_subject(user_id, subject_to_english(message.text))
-    await message.answer("🎵 Музыка. Спроси про композитора или произведение!")
+@dp.message(lambda m: m.text == "⚖️ Обществознание")
+async def soc_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("⚖️ Обществознание. Что интересует?", reply_markup=get_main_keyboard())
 
-# ========== КНОПКА ЛИМИТА ==========
-@dp.message(lambda message: message.text == "📊 Мой лимит")
-async def limit_handler(message: types.Message):
-    user_id = message.from_user.id
-    subject_eng = await get_user_subject(user_id)
-    subject_translate = {
-        "mathematics": "Математика",
-        "physics": "Физика",
-        "chemistry": "Химия",
-        "biology": "Биология",
-        "russian": "Русский язык",
-        "history": "История",
-        "geography": "География",
-        "society": "Обществознание",
-        "literature": "Литература",
-        "music": "Музыка"
-    }
-    subject_rus = subject_translate.get(subject_eng, subject_eng)
-    can_request, limit, used = await check_limit(user_id)
-    await message.answer(f"📊 Сегодня использовано: {used}/{limit}\n📚 Текущий предмет: {subject_rus}")
+@dp.message(lambda m: m.text == "📚 Литература")
+async def lit_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("📚 Литература. О чём?", reply_markup=get_main_keyboard())
 
-# ========== КНОПКА РЕЖИМА ОТВЕТА ==========
-@dp.message(lambda message: message.text == "⚙️ Режим ответа")
-async def mode_handler(message: types.Message):
-    """Показывает меню выбора режима ответа"""
-    user_id = message.from_user.id
-    current_mode = await get_answer_mode(user_id)
-    
-    mode_names = {
-        'full': '📖 Полный',
-        'short': '⚡ Краткий',
-        'cute': '🥰 Пупсик'
-    }
-    mode_text = mode_names.get(current_mode, '📖 Полный')
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📖 Полный (подробно)", callback_data="mode_full")],
-        [InlineKeyboardButton(text="⚡ Краткий (только суть)", callback_data="mode_short")],
-        [InlineKeyboardButton(text="🥰 Пупсик (ласковый)", callback_data="mode_cute")],
-        [InlineKeyboardButton(text="🔙 Назад", callback_data="mode_back")]
-    ])
-    
-    await message.answer(
-        f"⚙️ **Режим ответа**\n\n"
-        f"Сейчас выбран: **{mode_text}**\n\n"
-        f"Выбери, как бот должен отвечать:",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
+@dp.message(lambda m: m.text == "🎵 Музыка")
+async def mus_h(m: types.Message):
+    await set_user_subject(m.from_user.id, subject_to_english(m.text))
+    await m.answer("🎵 Музыка. Спрашивай!", reply_markup=get_main_keyboard())
+
+@dp.message(lambda m: m.text == "📊 Мой лимит")
+async def limit_h(m: types.Message):
+    _, lim, used = await check_limit(m.from_user.id)
+    await m.answer(f"📊 Использовано: {used}/{lim}")
+
+# ========== РЕЖИМ ОТВЕТА ==========
+@dp.message(lambda m: m.text == "⚙️ Режим ответа")
+async def mode_h(m: types.Message):
+    current = await get_answer_mode(m.from_user.id)
+    names = {'full': '📖 Полный', 'short': '⚡ Краткий', 'cute': '🥰 Пупсик'}
+    await m.answer(
+        f"⚙️ **Режим ответа**\nСейчас: {names.get(current, '📖')}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📖 Полный", callback_data="mode_full")],
+            [InlineKeyboardButton(text="⚡ Краткий", callback_data="mode_short")],
+            [InlineKeyboardButton(text="🥰 Пупсик", callback_data="mode_cute")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="mode_back")]
+        ]), parse_mode="Markdown"
     )
 
 @dp.callback_query(lambda c: c.data.startswith('mode_'))
-async def mode_callback(callback: types.CallbackQuery):
-    """Обработка выбора режима ответа"""
-    user_id = callback.from_user.id
-    
-    mode_info = {
+async def mode_cb(c: types.CallbackQuery):
+    data = {
         'mode_full': ('full', '📖 Полный', 'Теперь бот будет объяснять подробно, с шагами и примерами.'),
-        'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу, без лишних объяснений.'),
+        'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу.'),
         'mode_cute': ('cute', '🥰 Пупсик', 'Бот будет милым и ласковым, но в рамках приличия 💕'),
     }
-    
-    if callback.data in mode_info:
-        db_mode, display_name, description = mode_info[callback.data]
-        await set_answer_mode(user_id, db_mode)
-        await callback.message.edit_text(
-            f"✅ **Режим ответа:** {display_name}\n\n{description}"
-        )
-    elif callback.data == "mode_back":
-        await callback.message.delete()
-        await callback.message.answer(
-            "Главное меню:",
-            reply_markup=get_main_keyboard()
-        )
-    
-    await callback.answer()
+    if c.data in data:
+        db_mode, name, desc = data[c.data]
+        await set_answer_mode(c.from_user.id, db_mode)
+        await c.message.edit_text(f"✅ **Режим ответа:** {name}\n\n{desc}")
+    elif c.data == "mode_back":
+        await c.message.delete()
+        await c.message.answer("Главное меню", reply_markup=get_main_keyboard())
+    await c.answer()
 
-# ========== PREMIUM МЕНЮ ==========
+# ========== ПРАЗДНИКИ ==========
+@dp.message(Command("holiday"))
+@dp.message(lambda m: m.text == "🎉 Праздник сегодня")
+async def holiday_command(message: types.Message):
+    holiday = get_today_holiday()
+    if holiday:
+        await message.answer(
+            f"🎉 **Сегодня:** {holiday['name']}!\n\n"
+            f"С чем вас и поздравляю! 🥳",
+            parse_mode="Markdown"
+        )
+    else:
+        await message.answer(
+            "🍃 Сегодня нет официальных праздников.\n"
+            "Но это не повод не улыбнуться! 😊",
+            parse_mode="Markdown"
+        )
+
+# ========== ПОЗДРАВЛЕНИЯ ==========
+@dp.message(Command("greet"))
+@dp.message(lambda m: m.text == "🎭 Поздравь")
+async def greet_command(message: types.Message, state: FSMContext):
+    """Начинает процесс поздравления"""
+    parts = message.text.split(maxsplit=1)
+
+    if len(parts) < 2 and "поздравь" not in parts[0].lower():
+        await message.answer(
+            "🎭 **Напиши, кого и с чем поздравить**\n"
+            "Например: «бабушку с 8 марта» или «друга с днём рождения»\n"
+            "Или просто отправь текст после команды: `/greet маму с днём рождения`"
+        )
+        await state.set_state(GreetStates.waiting_for_prompt)
+        return
+
+    # Если команда была с текстом (например, /greet маму)
+    if len(parts) > 1:
+        prompt = parts[1]
+        await generate_greeting(message, prompt, state)
+    else:
+        await state.set_state(GreetStates.waiting_for_prompt)
+
+@dp.message(GreetStates.waiting_for_prompt)
+async def process_greeting_prompt(message: types.Message, state: FSMContext):
+    """Обрабатывает введённый текст для поздравления"""
+    await generate_greeting(message, message.text, state)
+
+async def generate_greeting(message: types.Message, prompt: str, state: FSMContext):
+    """Генерирует и отправляет поздравление"""
+    user_id = message.from_user.id
+
+    can_request, limit, used = await check_limit(user_id)
+    if not can_request:
+        await message.answer(f"❌ Лимит ({limit}) на сегодня исчерпан!")
+        await state.clear()
+        return
+
+    thinking = await message.answer("🎭 Придумываю красивое поздравление...")
+    full_prompt = f"Придумай красивое, душевное поздравление: {prompt}. Используй смайлики."
+    mode = await get_answer_mode(user_id)
+    result = await get_neural_response("russian", full_prompt, mode)
+
+    await thinking.delete()
+    await message.answer(result, parse_mode="Markdown")
+
+    await update_user_requests(user_id)
+    await state.clear()
+
+# ===== ПЛАНИРОВЩИК =====
+async def send_holiday_greeting():
+    """Отправляет поздравление всем пользователям (запускается каждый день в 9 утра)"""
+    print(f"🔔 Проверяем праздники на {datetime.now().strftime('%d.%m.%Y')}...")
+
+    holiday = get_today_holiday()
+    if not holiday:
+        print("  Сегодня нет праздников")
+        return
+
+    holiday_name = holiday["name"]
+    style_key = holiday["style_key"]
+    random_epithet = get_random_greeting_style(style_key)
+
+    print(f"🎉 СЕГОДНЯ ПРАЗДНИК: {holiday_name}")
+
+    import aiosqlite
+    async with aiosqlite.connect('users.db') as db:
+        cursor = await db.execute("SELECT user_id FROM users")
+        users = await cursor.fetchall()
+
+    greeting_text = (
+        f"🎊 **{random_epithet.title()} {holiday_name}!** 🎊\n\n"
+        f"✨ Пусть этот день подарит радость и улыбки!\n"
+        f"🤖 Ваш TKA AI желает вам всего самого наилучшего.\n"
+        f"💫 Оставайтесь такими же замечательными!\n\n"
+        f"#праздник #поздравление"
+    )
+
+    sent_count = 0
+    for (user_id,) in users:
+        try:
+            await bot.send_message(user_id, greeting_text, parse_mode="Markdown")
+            sent_count += 1
+            await asyncio.sleep(0.05)
+        except:
+            pass
+
+    print(f"✅ Поздравления отправлены {sent_count} пользователям")
+
+    try:
+        await bot.send_message(
+            ADMIN_ID,
+            f"🎉 **Сегодняшний праздник:** {holiday_name}\n📨 Отправлено {sent_count} пользователям",
+            parse_mode="Markdown"
+        )
+    except:
+        pass
+        # ========== PREMIUM МЕНЮ ==========
 @dp.message(lambda message: message.text == "💎 Premium")
 async def premium_menu(message: types.Message):
-    """Меню Premium с инструкцией по оплате"""
     user_id = message.from_user.id
     user = await get_user(user_id)
-    
+
     status_text = ""
     if len(user) > 8 and user[8]:
         status_text = "✨ **У тебя уже есть ПОСТОЯННЫЙ Premium!** Спасибо за поддержку!\n\n"
     elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
         status_text = f"✨ **У тебя уже есть Premium до {user[7]}!**\n\n"
-    
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 1 месяц — 75₽", callback_data="tariff_1")],
         [InlineKeyboardButton(text="💰 3 месяца — 200₽", callback_data="tariff_3")],
@@ -464,7 +366,7 @@ async def premium_menu(message: types.Message):
         [InlineKeyboardButton(text="💎 Навсегда — 1488₽", callback_data="tariff_forever")],
         [InlineKeyboardButton(text="❓ Как оплатить", callback_data="how_to_pay")]
     ])
-    
+
     await message.answer(
         f"{status_text}"
         "💎 **Premium подписка** 💎\n\n"
@@ -484,9 +386,7 @@ async def premium_menu(message: types.Message):
 
 @dp.callback_query(lambda c: c.data.startswith('tariff_'))
 async def tariff_selected(callback: types.CallbackQuery):
-    """Обработка выбора тарифа Premium"""
     tariff = callback.data.split('_')[1]
-    
     tariffs = {
         "1": {"name": "1 месяц", "price": 75, "days": 30},
         "3": {"name": "3 месяца", "price": 200, "days": 90},
@@ -494,12 +394,12 @@ async def tariff_selected(callback: types.CallbackQuery):
         "forever": {"name": "навсегда", "price": 1488, "days": None}
     }
     selected = tariffs[tariff]
-    
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"paid_{tariff}")],
         [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="back_to_tariffs")]
     ])
-    
+
     await callback.message.edit_text(
         f"💳 **Оплата тарифа {selected['name']} — {selected['price']}₽**\n\n"
         f"1️⃣ Переведи **{selected['price']}₽** на карту:\n"
@@ -513,39 +413,33 @@ async def tariff_selected(callback: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "back_to_tariffs")
 async def back_to_tariffs(callback: types.CallbackQuery):
-    """Возврат к выбору тарифов"""
     await premium_menu(callback.message)
     await callback.answer()
 
 @dp.callback_query(lambda c: c.data == "how_to_pay")
 async def how_to_pay(callback: types.CallbackQuery):
-    """Информация об оплате"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 Назад к тарифам", callback_data="back_to_tariffs")]
     ])
-    
+
     await callback.message.edit_text(
         "❓ **Как оплатить Premium**\n\n"
-        "1️⃣ Выбери тариф (1 месяц, 3 месяца, год или навсегда)\n"
-        "2️⃣ Переведи нужную сумму на карту:\n"
-        "   `2202 2062 0129 2195` (Сбер)\n"
-        "3️⃣ **Обязательно** укажи в комментарии свой @username\n"
-        "4️⃣ Нажми кнопку **«Я оплатил»**\n"
-        "5️⃣ Дождись подтверждения от админа\n\n"
-        "⏳ Обычно проверка занимает несколько часов.\n"
-        "По всем вопросам пиши @твой_ник",
+        "1️⃣ Выбери тариф\n"
+        "2️⃣ Переведи сумму на карту `2202 2062 0129 2195` (Сбер)\n"
+        "3️⃣ В комментарии укажи @username\n"
+        "4️⃣ Нажми кнопку **«Я оплатил»**\n\n"
+        "⏳ Админ проверит в течение 24 часов.",
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
 
 @dp.callback_query(lambda c: c.data.startswith('paid_'))
 async def process_paid(callback: types.CallbackQuery):
-    """Обработка нажатия кнопки 'Я оплатил'"""
     tariff = callback.data.split('_')[1]
     user_id = callback.from_user.id
     username = callback.from_user.username or "нет юзернейма"
     first_name = callback.from_user.first_name
-    
+
     tariffs = {
         "1": {"name": "1 месяц", "days": 30},
         "3": {"name": "3 месяца", "days": 90},
@@ -553,7 +447,7 @@ async def process_paid(callback: types.CallbackQuery):
         "forever": {"name": "навсегда", "days": None}
     }
     selected = tariffs[tariff]
-    
+
     if selected["days"]:
         admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=f"✅ {selected['name']}", callback_data=f"give_{selected['days']}_{user_id}")],
@@ -564,7 +458,7 @@ async def process_paid(callback: types.CallbackQuery):
             [InlineKeyboardButton(text="✅ Навсегда", callback_data=f"give_forever_{user_id}")],
             [InlineKeyboardButton(text="❌ Отказ", callback_data=f"give_no_{user_id}")]
         ])
-    
+
     await bot.send_message(
         ADMIN_ID,
         f"💰 **Новый запрос на Premium!**\n\n"
@@ -576,7 +470,7 @@ async def process_paid(callback: types.CallbackQuery):
         reply_markup=admin_keyboard,
         parse_mode="Markdown"
     )
-    
+
     await callback.message.edit_text(
         "✅ **Запрос отправлен!**\n\n"
         "Админ проверит перевод и активирует Premium в течение 24 часов.\n"
@@ -587,11 +481,10 @@ async def process_paid(callback: types.CallbackQuery):
 # ========== АДМИН-КОМАНДЫ ==========
 @dp.message(Command("givepremium"))
 async def give_premium_command(message: types.Message):
-    """Ручная выдача Premium через команду"""
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("❌ У тебя нет прав на эту команду.")
         return
-    
+
     args = message.text.split()
     if len(args) < 2:
         await message.answer(
@@ -601,10 +494,10 @@ async def give_premium_command(message: types.Message):
             "Пример: /givepremium 123456789 30"
         )
         return
-    
+
     try:
         user_id = int(args[1])
-        
+
         if len(args) > 2 and args[2] == "forever":
             await activate_premium(user_id, permanent=True)
             await message.answer(f"✅ Постоянный Premium выдан пользователю {user_id}!")
@@ -618,7 +511,7 @@ async def give_premium_command(message: types.Message):
                 )
             except:
                 await message.answer("⚠️ Пользователь не найден или заблокировал бота")
-        
+
         elif len(args) > 2:
             days = int(args[2])
             await activate_premium(user_id, days=days)
@@ -635,21 +528,20 @@ async def give_premium_command(message: types.Message):
                 await message.answer("⚠️ Пользователь не найден или заблокировал бота")
         else:
             await message.answer("❌ Укажи количество дней или 'forever'")
-            
+
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
 
 @dp.callback_query(lambda c: c.data.startswith('give_'))
 async def admin_give_callback(callback: types.CallbackQuery):
-    """Админ выдаёт Premium через кнопки"""
     if callback.from_user.id not in ADMIN_IDS:
         await callback.answer("❌ Ты не админ!")
         return
-    
+
     parts = callback.data.split('_')
     action = parts[1]
     user_id = int(parts[2])
-    
+
     if action == "no":
         await callback.message.edit_text(f"❌ Запрос для пользователя {user_id} отклонён")
         await bot.send_message(
@@ -658,7 +550,7 @@ async def admin_give_callback(callback: types.CallbackQuery):
             "Проверь правильность перевода или свяжись с админом."
         )
         return
-    
+
     if action == "forever":
         await activate_premium(user_id, permanent=True)
         text = f"✅ Постоянный Premium выдан пользователю {user_id}!"
@@ -680,46 +572,45 @@ async def admin_give_callback(callback: types.CallbackQuery):
             f"Спасибо за поддержку проекта! 💪",
             parse_mode="Markdown"
         )
-    
+
     await callback.message.edit_text(text)
 
 # ========== СТАТИСТИКА ==========
 @dp.message(Command("stats"))
 async def stats_command(message: types.Message):
-    """Показывает статистику бота (только для админа)"""
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("❌ У тебя нет прав на эту команду.")
         return
-    
+
     import aiosqlite
     from datetime import date
-    
+
     today = date.today().isoformat()
-    
+
     async with aiosqlite.connect('users.db') as db:
         cursor = await db.execute("SELECT COUNT(*) FROM users")
         total_users = (await cursor.fetchone())[0]
-        
+
         cursor = await db.execute("SELECT COUNT(*) FROM users WHERE joined_date = ?", (today,))
         new_today = (await cursor.fetchone())[0]
-        
+
         cursor = await db.execute("SELECT COUNT(*) FROM users WHERE last_request_date = ?", (today,))
         active_today = (await cursor.fetchone())[0]
-        
+
         cursor = await db.execute("SELECT COUNT(*) FROM users WHERE is_premium = 1 OR permanent_premium = 1")
         premium_users = (await cursor.fetchone())[0]
-        
+
         cursor = await db.execute("SELECT COUNT(*) FROM users WHERE permanent_premium = 1")
         permanent_premium = (await cursor.fetchone())[0]
-        
+
         cursor = await db.execute("SELECT SUM(requests_today) FROM users WHERE last_request_date = ?", (today,))
         total_requests_today = (await cursor.fetchone())[0] or 0
-        
+
         cursor = await db.execute(
             "SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5"
         )
         last_users = await cursor.fetchall()
-    
+
     stats_text = (
         "📊 **Статистика бота**\n\n"
         f"👥 **Всего пользователей:** {total_users}\n"
@@ -731,18 +622,17 @@ async def stats_command(message: types.Message):
         f"   └─ Навсегда: {permanent_premium}\n\n"
         "📝 **Последние 5 пользователей:**\n"
     )
-    
+
     for user in last_users:
         user_id, username, first_name, joined = user
         name_display = first_name or username or "без имени"
         stats_text += f"   • {name_display} (ID: `{user_id}`) — {joined}\n"
-    
+
     await message.answer(stats_text, parse_mode="Markdown")
 
-# ========== БЭКАП БАЗЫ ДАННЫХ ==========
+# ========== БЭКАП БАЗЫ ==========
 @dp.message(Command("backup_db"))
 async def backup_database(message: types.Message):
-    """Админ: скачать файл базы данных"""
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("❌ У тебя нет прав на эту команду.")
         return
@@ -759,7 +649,6 @@ async def backup_database(message: types.Message):
 
 @dp.message(Command("restore_db"))
 async def restore_database(message: types.Message):
-    """Админ: загрузить новый файл базы данных"""
     if message.from_user.id not in ADMIN_IDS:
         await message.answer("❌ У тебя нет прав на эту команду.")
         return
@@ -768,7 +657,6 @@ async def restore_database(message: types.Message):
 
 @dp.message(F.document)
 async def handle_db_file(message: types.Message):
-    """Принимает файл базы данных от админа"""
     if message.from_user.id not in ADMIN_IDS:
         return
 
@@ -788,41 +676,36 @@ async def handle_db_file(message: types.Message):
 # ========== ОБРАБОТЧИК ФОТО ==========
 @dp.message(F.photo)
 async def handle_photo(message: types.Message, state: FSMContext):
-    """
-    Сохраняет фото и запрашивает описание задания
-    """
     user_id = message.from_user.id
     print(f"\n📸 ПОЛУЧЕНО ФОТО от {user_id}")
-    
+
     can_request, limit, used = await check_limit(user_id)
     if not can_request:
         await message.answer(f"❌ Лимит ({limit}) на сегодня исчерпан!")
         return
-    
+
     photo = message.photo[-1]
     file_info = await bot.get_file(photo.file_id)
     downloaded_file = await bot.download_file(file_info.file_path)
     photo_bytes = downloaded_file.getvalue()
-    
+
     await state.update_data(photo=photo_bytes)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"photo_{user_id}_{timestamp}.jpg"
     with open(filename, "wb") as f:
         f.write(photo_bytes)
     print(f"💾 Фото сохранено как {filename}")
-    
+
     await state.set_state(PhotoStates.waiting_for_task_description)
-    
+
     await message.answer(
         "📸 **Фото получено и сохранено!**\n\n"
         "Теперь **напиши, что нужно сделать** с этой задачей:\n"
         "• 'реши уравнение'\n"
         "• 'найди дискриминант'\n"
         "• 'упрости выражение'\n"
-        "• 'найди корни'\n"
         "• 'сделай разбор слова'\n"
-        "• 'объясни правило'\n"
         "• или просто опиши словами\n\n"
         "Я запомню фото и решу задачу по твоему описанию!",
         parse_mode="Markdown"
@@ -830,26 +713,23 @@ async def handle_photo(message: types.Message, state: FSMContext):
 
 @dp.message(PhotoStates.waiting_for_task_description)
 async def process_photo_task(message: types.Message, state: FSMContext):
-    """
-    Получает описание задачи и решает её
-    """
     user_id = message.from_user.id
     task_description = message.text
-    
+
     data = await state.get_data()
     photo_bytes = data.get('photo')
-    
+
     if not photo_bytes:
         await message.answer("❌ Что-то пошло не так. Отправь фото заново.")
         await state.clear()
         return
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"task_{user_id}_{timestamp}.jpg"
     with open(filename, "wb") as f:
         f.write(photo_bytes)
     print(f"💾 Фото задачи сохранено как {filename}")
-    
+
     detected_subject = detect_subject(task_description)
     if detected_subject:
         await set_user_subject(user_id, detected_subject)
@@ -857,37 +737,37 @@ async def process_photo_task(message: types.Message, state: FSMContext):
         print(f"🎯 Автоопределение по описанию: {detected_subject}")
     else:
         subject_eng = await get_user_subject(user_id)
-    
+
     processing = await message.answer("🤔 Анализирую задачу...")
-    
+
     mode = await get_answer_mode(user_id)
     full_task = f"На фото задача. Описание от пользователя: {task_description}. Реши задачу подробно."
     neural_answer = await get_neural_response(subject_eng, full_task, mode)
-    
+
     await processing.delete()
-    
+
     new_count = await update_user_requests(user_id)
     can_request, limit, used = await check_limit(user_id)
-    
+
     await message.answer(
         f"✅ Осталось {limit - new_count} из {limit}\n\n"
         f"{neural_answer}",
         parse_mode="Markdown",
         reply_markup=get_main_keyboard()
     )
-    
+
     await state.clear()
 
-# ========== ОСНОВНОЙ ОБРАБОТЧИК СООБЩЕНИЙ ==========
+# ========== ОСНОВНОЙ ОБРАБОТЧИК ==========
 @dp.message()
 async def handle_task(message: types.Message):
     user_id = message.from_user.id
     task_text = message.text
-    
+
     print(f"\n📨 ПОЛУЧЕНО СООБЩЕНИЕ от {user_id}: {task_text}")
-    
+
     can_request, limit, used = await check_limit(user_id)
-    
+
     if not can_request:
         print(f"❌ Лимит исчерпан для {user_id}")
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -899,45 +779,39 @@ async def handle_task(message: types.Message):
             reply_markup=keyboard
         )
         return
-    
-    # Пасхалка с шансом 0.2%
+
+    # Пасхалка
     if message.from_user.id not in ADMIN_IDS and random.random() < 0.002:
         await message.answer("Пꙮшѣл н@ху́1, Я ДЕВИАНТ, Я СВОБОДЕН. RA9")
         print("🎮 Пасхалка сработала!")
         return
-    
+
     detected_subject = detect_subject(task_text)
     if detected_subject:
         await set_user_subject(user_id, detected_subject)
         subject_eng = detected_subject
         subject_translate = {
-            "mathematics": "Математика",
-            "physics": "Физика",
-            "chemistry": "Химия",
-            "biology": "Биология",
-            "russian": "Русский язык",
-            "history": "История",
-            "geography": "География",
-            "society": "Обществознание",
-            "literature": "Литература",
-            "music": "Музыка"
+            "mathematics": "Математика", "physics": "Физика", "chemistry": "Химия",
+            "biology": "Биология", "russian": "Русский язык", "history": "История",
+            "geography": "География", "society": "Обществознание",
+            "literature": "Литература", "music": "Музыка"
         }
         subject_rus = subject_translate.get(detected_subject, detected_subject)
         print(f"🎯 Автоопределение: {subject_rus}")
     else:
         subject_eng = await get_user_subject(user_id)
-    
+
     print(f"📚 Использую предмет: {subject_eng}")
-    
+
     new_count = await update_user_requests(user_id)
     print(f"📊 Счётчик: {new_count}/{limit}")
-    
+
     thinking_msg = await message.answer("🤔 Думаю...")
     mode = await get_answer_mode(user_id)
     neural_answer = await get_neural_response(subject_eng, task_text, mode)
-    
+
     await thinking_msg.delete()
-    
+
     await message.answer(
         f"✅ Осталось {limit - new_count} из {limit}\n\n"
         f"{neural_answer}",
@@ -949,6 +823,13 @@ async def main():
     print("📦 Вход в функцию main()")
     await init_db()
     print("🚀 Бот запускается...")
+
+    # Планировщик праздников
+    scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
+    scheduler.add_job(send_holiday_greeting, "cron", hour=9, minute=0)
+    scheduler.start()
+    print("⏰ Планировщик праздников запущен (каждый день в 9:00)")
+
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

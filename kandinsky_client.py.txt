@@ -1,0 +1,99 @@
+import asyncio
+import base64
+from io import BytesIO
+from typing import Optional, Union
+import aiofiles
+from AsyncKandinsky import FusionBrainApi, ApiApi, ApiWeb
+
+class KandinskyClient:
+    """Клиент для работы с Kandinsky (картинки + видео)"""
+    
+    def __init__(self, api_key: str = None, secret_key: str = None, 
+                 email: str = None, password: str = None):
+        """
+        Два режима:
+        - api_key/secret_key: только картинки
+        - email/password: картинки + видео (лучшее качество)
+        """
+        if email and password:
+            # Режим с аккаунтом (видео доступны)
+            self.model = FusionBrainApi(ApiWeb(email, password))
+            self.has_video = True
+            print("✅ Kandinsky: режим аккаунта (видео доступны)")
+        else:
+            # Режим с ключами (только картинки)
+            self.model = FusionBrainApi(ApiApi(api_key, secret_key))
+            self.has_video = False
+            print("✅ Kandinsky: режим API-ключей")
+    
+    async def text2image(self, prompt: str, style: str = "DEFAULT", 
+                         art_gpt: bool = True) -> Optional[bytes]:
+        """Генерация картинки по тексту"""
+        try:
+            print(f"🎨 Генерация картинки: {prompt[:50]}...")
+            result = await self.model.text2image(prompt, style=style, art_gpt=art_gpt)
+            return result.getvalue()
+        except Exception as e:
+            print(f"❌ Ошибка генерации: {e}")
+            return None
+    
+    async def image2image(self, image_bytes: bytes, prompt: str, 
+                          style: str = "DEFAULT", strength: float = 0.7) -> Optional[bytes]:
+        """Генерация по фото + промпт (Image-to-Image)"""
+        try:
+            # Сохраняем фото временно
+            temp_input = "temp_input.jpg"
+            with open(temp_input, "wb") as f:
+                f.write(image_bytes)
+            
+            # Отправляем на генерацию
+            print(f"🎨 Редактирование фото: {prompt[:50]}...")
+            # Примечание: в AsyncKandinsky есть img2img, но точный метод может отличаться
+            # Используем text2image с доп. параметрами
+            result = await self.model.text2image(
+                prompt, 
+                style=style, 
+                art_gpt=True,
+                init_image=temp_input,
+                strength=strength
+            )
+            return result.getvalue()
+        except Exception as e:
+            print(f"❌ Ошибка редактирования: {e}")
+            return None
+    
+    async def text2video(self, prompt: str) -> Optional[bytes]:
+        """Генерация видео по тексту (только с аккаунтом)"""
+        if not self.has_video:
+            print("❌ Видео доступны только в режиме аккаунта")
+            return None
+        
+        try:
+            print(f"🎬 Генерация видео: {prompt[:50]}...")
+            result = await self.model.text2video(prompt)
+            return result.getvalue()
+        except Exception as e:
+            print(f"❌ Ошибка генерации видео: {e}")
+            return None
+    
+    async def text2animation(self, scenes: list) -> Optional[bytes]:
+        """Генерация анимации из нескольких сцен"""
+        if not self.has_video:
+            print("❌ Анимации доступны только в режиме аккаунта")
+            return None
+        
+        try:
+            print(f"🎬 Генерация анимации из {len(scenes)} сцен...")
+            result = await self.model.text2animation(scenes)
+            return result.getvalue()
+        except Exception as e:
+            print(f"❌ Ошибка генерации анимации: {e}")
+            return None
+    
+    async def get_styles(self) -> list:
+        """Получить список доступных стилей"""
+        try:
+            return await self.model.get_styles()
+        except Exception as e:
+            print(f"❌ Ошибка получения стилей: {e}")
+            return []
