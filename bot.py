@@ -749,7 +749,142 @@ async def main():
     await init_db()
     print("🚀 Бот запускается...")
     await dp.start_polling(bot)
+# ========== СТАТИСТИКА ДЛЯ АДМИНА ==========
+@dp.message(Command("stats"))
+async def stats_command(message: types.Message):
+    """Показывает статистику бота (только для админа)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+    
+    from datetime import datetime, timedelta
+    today = date.today().isoformat()
+    
+    async with aiosqlite.connect('users.db') as db:
+        # 1. Общее количество пользователей
+        cursor = await db.execute("SELECT COUNT(*) FROM users")
+        total_users = (await cursor.fetchone())[0]
+        
+        # 2. Новые пользователи сегодня
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE joined_date = ?",
+            (today,)
+        )
+        new_today = (await cursor.fetchone())[0]
+        
+        # 3. Активные сегодня (кто писал сегодня)
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE last_request_date = ?",
+            (today,)
+        )
+        active_today = (await cursor.fetchone())[0]
+        
+        # 4. Премиум-пользователи
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE is_premium = 1 OR permanent_premium = 1"
+        )
+        premium_users = (await cursor.fetchone())[0]
+        
+        # 5. Постоянный премиум
+        cursor = await db.execute(
+            "SELECT COUNT(*) FROM users WHERE permanent_premium = 1"
+        )
+        permanent_premium = (await cursor.fetchone())[0]
+        
+        # 6. Всего запросов за сегодня
+        cursor = await db.execute(
+            "SELECT SUM(requests_today) FROM users WHERE last_request_date = ?",
+            (today,)
+        )
+        total_requests_today = (await cursor.fetchone())[0] or 0
+        
+        # 7. Последние 5 пользователей
+        cursor = await db.execute(
+            "SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5"
+        )
+        last_users = await cursor.fetchall()
+    
+    # Формируем красивый ответ
+    stats_text = (
+        "📊 **Статистика бота**\n\n"
+        f"👥 **Всего пользователей:** {total_users}\n"
+        f"🆕 **Новых сегодня:** {new_today}\n"
+        f"⚡ **Активных сегодня:** {active_today}\n"
+        f"💬 **Запросов сегодня:** {total_requests_today}\n"
+        f"💎 **Premium всего:** {premium_users}\n"
+        f"   ├─ Обычный: {premium_users - permanent_premium}\n"
+        f"   └─ Навсегда: {permanent_premium}\n\n"
+        "📝 **Последние 5 пользователей:**\n"
+    )
+    
+    for user in last_users:
+        user_id, username, first_name, joined = user
+        name_display = first_name or username or "без имени"
+        stats_text += f"   • {name_display} (ID: {user_id}) — {joined}\n"
+    
+    await message.answer(stats_text, parse_mode="Markdown")
 
+@dp.message(Command("userstats"))
+async def userstats_command(message: types.Message):
+    """Показывает детальную статистику по конкретному пользователю (только для админа)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+    
+    args = message.text.split()
+    if len(args) < 2:
+        await message.answer("❌ Укажи ID пользователя. Пример: /userstats 123456789")
+        return
+    
+    try:
+        target_id = int(args[1])
+    except ValueError:
+        await message.answer("❌ ID должен быть числом.")
+        return
+    
+    async with aiosqlite.connect('users.db') as db:
+        cursor = await db.execute(
+            "SELECT * FROM users WHERE user_id = ?",
+            (target_id,)
+        )
+        user = await cursor.fetchone()
+    
+    if not user:
+        await message.answer(f"❌ Пользователь с ID {target_id} не найден.")
+        return
+    
+    # Распаковываем данные (порядок полей из твоей БД)
+    user_data = {
+        'user_id': user[0],
+        'username': user[1] or 'нет',
+        'first_name': user[2] or 'нет',
+        'last_name': user[3] or 'нет',
+        'requests_today': user[4],
+        'last_request_date': user[5],
+        'is_premium': '✅ Да' if user[6] else '❌ Нет',
+        'premium_until': user[7] or 'бессрочно' if user[8] else user[7] or 'не активен',
+        'permanent': '✅ Да' if user[8] else '❌ Нет',
+        'joined_date': user[9],
+        'subject': user[10]
+    }
+    
+    detail_text = (
+        f"📋 **Данные пользователя**\n\n"
+        f"🆔 ID: `{user_data['user_id']}`\n"
+        f"👤 Юзернейм: @{user_data['username']}\n"
+        f"📝 Имя: {user_data['first_name']} {user_data['last_name']}\n"
+        f"📅 Зарегистрирован: {user_data['joined_date']}\n\n"
+        f"📊 **Активность**\n"
+        f"   • Запросов сегодня: {user_data['requests_today']}\n"
+        f"   • Последний запрос: {user_data['last_request_date']}\n"
+        f"   • Текущий предмет: {user_data['subject']}\n\n"
+        f"💎 **Premium**\n"
+        f"   • Статус: {user_data['is_premium']}\n"
+        f"   • Постоянный: {user_data['permanent']}\n"
+        f"   • Действует до: {user_data['premium_until']}"
+    )
+    
+    await message.answer(detail_text, parse_mode="Markdown")
 if __name__ == "__main__":
     print("🟢 Точка входа")
     asyncio.run(main())
