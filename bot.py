@@ -758,6 +758,27 @@ async def handle_db_file(message: types.Message):
 
     await message.answer("✅ База данных успешно восстановлена!")
 
+    # ========== АДМИН-КОМАНДА ДЛЯ СБРОСА ВСЕХ ЛИМИТОВ ==========
+@dp.message(Command("fix_all_limits"))
+async def fix_all_limits(message: types.Message):
+    """Сбрасывает лимиты у всех пользователей (только для админа)"""
+    if message.from_user.id not in ADMIN_IDS:
+        await message.answer("❌ У тебя нет прав на эту команду.")
+        return
+    
+    import aiosqlite
+    today = str(date.today())
+    
+    async with aiosqlite.connect('users.db') as db:
+        # Сбрасываем запросы у всех
+        await db.execute("UPDATE users SET requests_today = 0, last_request_date = ?", (today,))
+        # Сбрасываем картинки у всех
+        await db.execute("UPDATE users SET images_today = 0, last_image_date = ?", (today,))
+        await db.commit()
+    
+    await message.answer("✅ **Лимиты всех пользователей сброшены!**\n\nТеперь у всех:\n• 15 запросов\n• 5 картинок", parse_mode="Markdown")
+    print("🔄 Админ сбросил лимиты всех пользователей")
+
 # ========== ОБРАБОТЧИК ФОТО ==========
 @dp.message(F.photo)
 async def handle_photo(message: types.Message, state: FSMContext):
@@ -957,6 +978,12 @@ async def on_shutdown():
 async def main():
     print("📦 Вход в функцию main()")
     await init_db()
+# Принудительный сброс лимитов при каждом запуске (только для админа)
+async with aiosqlite.connect('users.db') as db:
+    await db.execute("UPDATE users SET requests_today = 0, last_request_date = ?", (str(date.today()),))
+    await db.execute("UPDATE users SET images_today = 0, last_image_date = ?", (str(date.today()),))
+    await db.commit()
+print("🔄 Лимиты всех пользователей сброшены при запуске")
     print("🚀 Бот запускается...")
 
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
