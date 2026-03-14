@@ -30,6 +30,7 @@ print("=" * 50)
 print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS, IMAGE GENERATION")
 print("=" * 50)
 
+# ========== НАСТРОЙКИ ==========
 API_TOKEN = '8690504647:AAGxxUC9QC-tNwKYVsQLaZxD6GJyN4x1GD8'
 ADMIN_ID = 5142302311
 ADMIN_IDS = [ADMIN_ID]
@@ -41,13 +42,16 @@ dp = Dispatcher(storage=storage)
 # ===== ИНИЦИАЛИЗАЦИЯ NANO BANANA =====
 nano = NanoBananaAPI()
 
+# ========== СОСТОЯНИЯ ==========
 class PhotoStates(StatesGroup):
     waiting_for_task_description = State()
 
 class GreetStates(StatesGroup):
     waiting_for_prompt = State()
 
+# ========== КЛАВИАТУРЫ ==========
 def get_main_keyboard():
+    """Главная клавиатура с кнопками категорий"""
     buttons = [
         [KeyboardButton(text="🎓 Предметы"), KeyboardButton(text="📊 Мой лимит")],
         [KeyboardButton(text="💎 Premium"), KeyboardButton(text="⚙️ Режим ответа")],
@@ -57,6 +61,7 @@ def get_main_keyboard():
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
 def get_subjects_keyboard():
+    """Клавиатура со всеми предметами"""
     buttons = [
         [KeyboardButton(text="📐 Математика"), KeyboardButton(text="⚡ Физика"), KeyboardButton(text="🧪 Химия")],
         [KeyboardButton(text="🧬 Биология"), KeyboardButton(text="📖 Русский язык"), KeyboardButton(text="📜 История")],
@@ -65,46 +70,78 @@ def get_subjects_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
+# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def subject_to_english(russian_subject: str) -> str:
+    """Переводит название предмета на английский для базы данных"""
     subjects = {
-        "📐 Математика": "mathematics", "⚡ Физика": "physics",
-        "🧪 Химия": "chemistry", "🧬 Биология": "biology",
-        "📖 Русский язык": "russian", "📜 История": "history",
-        "🌍 География": "geography", "⚖️ Обществознание": "society",
-        "📚 Литература": "literature", "🎵 Музыка": "music"
+        "📐 Математика": "mathematics",
+        "⚡ Физика": "physics",
+        "🧪 Химия": "chemistry",
+        "🧬 Биология": "biology",
+        "📖 Русский язык": "russian",
+        "📜 История": "history",
+        "🌍 География": "geography",
+        "⚖️ Обществознание": "society",
+        "📚 Литература": "literature",
+        "🎵 Музыка": "music"
     }
     return subjects.get(russian_subject, "mathematics")
 
 def detect_subject(text: str) -> str:
+    """Автоматически определяет предмет по тексту"""
     tl = text.lower()
+    
+    # Математика
     if any(k in tl for k in ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение']):
         return 'mathematics'
+    
+    # Физика
     if any(k in tl for k in ['ом', 'напряжение', 'сила тока', 'физика']):
         return 'physics'
+    
+    # Химия
     if any(k in tl for k in ['h2o', 'реакция', 'кислота', 'химия']):
         return 'chemistry'
-    if any(k in tl for k in ['клетка', 'биология', 'фотосинтез']):
+    
+    # Биология
+    if any(k in tl for k in ['клетка', 'биология', 'фотосинтез', 'организм']):
         return 'biology'
+    
+    # Русский язык
     if any(k in tl for k in ['слово', 'предложение', 'суффикс', 'корень', 'разбор']):
         return 'russian'
-    if any(k in tl for k in ['история', 'война', 'революция', 'царь']):
+    
+    # История
+    if any(k in tl for k in ['история', 'война', 'революция', 'царь', 'дата']):
         return 'history'
-    if any(k in tl for k in ['география', 'река', 'гора', 'страна']):
+    
+    # География
+    if any(k in tl for k in ['география', 'река', 'гора', 'страна', 'столица']):
         return 'geography'
+    
+    # Обществознание
     if any(k in tl for k in ['общество', 'государство', 'право', 'экономика']):
         return 'society'
+    
+    # Литература
     if any(k in tl for k in ['литература', 'поэт', 'писатель', 'роман']):
         return 'literature'
+    
+    # Музыка
     if any(k in tl for k in ['нота', 'аккорд', 'музыка', 'бетховен']):
         return 'music'
+    
     return None
 
+# ========== КОМАНДА СТАРТ ==========
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
     user_id = message.from_user.id
     first_name = message.from_user.first_name
+    
     await get_user(user_id)
     can_request, limit, used = await check_limit(user_id)
+    
     welcome_text = (
         f"👋 **Привет, {first_name}!**\n\n"
         "🤖 Я **TKA AI** — твой помощник в учёбе!\n\n"
@@ -118,13 +155,18 @@ async def start_command(message: types.Message):
         "❓ [Группа поддержки](t.me/TKA_AI_Help)\n"
         "⚡ Выбери предмет ниже или нажми кнопку!"
     )
-    await message.answer(welcome_text, parse_mode="Markdown",
-                         reply_markup=get_main_keyboard(),
-                         disable_web_page_preview=True)
+    
+    await message.answer(
+        welcome_text,
+        parse_mode="Markdown",
+        reply_markup=get_main_keyboard(),
+        disable_web_page_preview=True
+    )
 
+# ========== КОМАНДА ПОМОЩИ ==========
 @dp.message(Command("help"))
 async def help_command(message: types.Message):
-    await message.answer(
+    help_text = (
         "🆘 **Помощь**\n\n"
         "📌 Выбери предмет, пиши или шли фото.\n"
         "⚙️ Режимы: 📖 полный, ⚡ краткий, 🥰 пупсик.\n"
@@ -133,9 +175,12 @@ async def help_command(message: types.Message):
         "🎨 Генерация: `/draw кот в космосе`\n"
         "💎 Premium: 75₽/мес, 200₽/3мес, 555₽/год, 1488₽ навсегда.\n"
         "❓ @TKA_AI_Help",
-        parse_mode="Markdown", disable_web_page_preview=True
+        parse_mode="Markdown",
+        disable_web_page_preview=True
     )
+    await message.answer(help_text, parse_mode="Markdown", disable_web_page_preview=True)
 
+# ========== КОМАНДА СПИСОК КОМАНД ==========
 @dp.message(Command("mycommands"))
 @dp.message(lambda m: m.text == "📋 Мои команды")
 async def user_commands(message: types.Message):
@@ -158,16 +203,30 @@ async def user_commands(message: types.Message):
         "❓ **Вопросы:**\n"
         "[Группа поддержки](t.me/TKA_AI_Help)"
     )
-    await message.answer(commands_text, parse_mode="Markdown", disable_web_page_preview=True)
+    await message.answer(
+        commands_text,
+        parse_mode="Markdown",
+        disable_web_page_preview=True
+    )
 
+# ========== КНОПКИ НАВИГАЦИИ ==========
 @dp.message(lambda m: m.text == "🎓 Предметы")
 async def subjects_menu(message: types.Message):
-    await message.answer("📚 **Выбери предмет:**", reply_markup=get_subjects_keyboard(), parse_mode="Markdown")
+    await message.answer(
+        "📚 **Выбери предмет:**",
+        reply_markup=get_subjects_keyboard(),
+        parse_mode="Markdown"
+    )
 
 @dp.message(lambda m: m.text == "🔙 Назад в главное меню")
 async def back_to_main(message: types.Message):
-    await message.answer("🏠 **Главное меню**", reply_markup=get_main_keyboard(), parse_mode="Markdown")
+    await message.answer(
+        "🏠 **Главное меню**",
+        reply_markup=get_main_keyboard(),
+        parse_mode="Markdown"
+    )
 
+# ========== ОБРАБОТЧИКИ ПРЕДМЕТОВ ==========
 @dp.message(lambda m: m.text == "📐 Математика")
 async def math_h(m: types.Message):
     await set_user_subject(m.from_user.id, subject_to_english(m.text))
@@ -218,35 +277,44 @@ async def mus_h(m: types.Message):
     await set_user_subject(m.from_user.id, subject_to_english(m.text))
     await m.answer("🎵 Музыка. Спрашивай!", reply_markup=get_main_keyboard())
 
+# ========== КНОПКА ЛИМИТА ==========
 @dp.message(lambda m: m.text == "📊 Мой лимит")
 async def limit_h(m: types.Message):
-    _, lim, used = await check_limit(m.from_user.id)
-    img_lim, img_used = await check_image_limit(m.from_user.id)  # упрощённо
+    _, req_lim, req_used = await check_limit(m.from_user.id)
+    img_can, img_lim, img_used = await check_image_limit(m.from_user.id)
+    
     await m.answer(
-        f"📊 **Запросы:** {used}/{lim}\n"
-        f"🎨 **Картинки:** {img_used}/{lim}",
+        f"📊 **Твои лимиты на сегодня:**\n\n"
+        f"📝 **Запросы:** {req_used}/{req_lim}\n"
+        f"🎨 **Картинки:** {img_used}/{img_lim}",
         parse_mode="Markdown"
-    )# ========== РЕЖИМ ОТВЕТА ==========
+    )
+    # ========== РЕЖИМ ОТВЕТА ==========
 @dp.message(lambda m: m.text == "⚙️ Режим ответа")
 async def mode_h(m: types.Message):
     current = await get_answer_mode(m.from_user.id)
     names = {'full': '📖 Полный', 'short': '⚡ Краткий', 'cute': '🥰 Пупсик'}
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 Полный (подробно)", callback_data="mode_full")],
+        [InlineKeyboardButton(text="⚡ Краткий (только суть)", callback_data="mode_short")],
+        [InlineKeyboardButton(text="🥰 Пупсик (ласковый)", callback_data="mode_cute")],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="mode_back")]
+    ])
+    
     await m.answer(
-        f"⚙️ **Режим ответа**\nСейчас: {names.get(current, '📖')}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📖 Полный", callback_data="mode_full")],
-            [InlineKeyboardButton(text="⚡ Краткий", callback_data="mode_short")],
-            [InlineKeyboardButton(text="🥰 Пупсик", callback_data="mode_cute")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="mode_back")]
-        ]), parse_mode="Markdown"
+        f"⚙️ **Режим ответа**\n\nСейчас выбран: **{names.get(current, '📖 Полный')}**",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
     )
 
 @dp.callback_query(lambda c: c.data.startswith('mode_'))
 async def mode_cb(c: types.CallbackQuery):
     user_id = c.from_user.id
+    
     mode_data = {
         'mode_full': ('full', '📖 Полный', 'Теперь бот будет объяснять подробно, с шагами и примерами.'),
-        'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу.'),
+        'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу, без лишних объяснений.'),
         'mode_cute': ('cute', '🥰 Пупсик', 'Бот будет милым и ласковым, но в рамках приличия 💕'),
     }
     
@@ -256,10 +324,11 @@ async def mode_cb(c: types.CallbackQuery):
         await c.message.edit_text(f"✅ **Режим ответа:** {display_name}\n\n{description}")
     elif c.data == "mode_back":
         await c.message.delete()
-        await c.message.answer("Главное меню", reply_markup=get_main_keyboard())
+        await c.message.answer("🏠 **Главное меню**", reply_markup=get_main_keyboard())
+    
     await c.answer()
 
-# ========== ПРАЗДНИКИ И ПОЗДРАВЛЕНИЯ ==========
+# ========== ПРАЗДНИКИ ==========
 @dp.message(Command("holiday"))
 @dp.message(lambda m: m.text == "🎉 Праздник сегодня")
 async def holiday_command(message: types.Message):
@@ -277,6 +346,7 @@ async def holiday_command(message: types.Message):
             parse_mode="Markdown"
         )
 
+# ========== ПОЗДРАВЛЕНИЯ ==========
 @dp.message(Command("greet"))
 @dp.message(lambda m: m.text == "🎭 Поздравь")
 async def greet_command(message: types.Message, state: FSMContext):
@@ -307,6 +377,7 @@ async def generate_greeting(message: types.Message, prompt: str, state: FSMConte
         return
     
     thinking = await message.answer("🎭 Придумываю красивое поздравление...")
+    
     full_prompt = f"Придумай красивое, душевное поздравление: {prompt}. Используй смайлики, будь оригинальным."
     mode = await get_answer_mode(user_id)
     result = await get_neural_response("russian", full_prompt, mode)
@@ -324,7 +395,6 @@ async def generate_greeting(message: types.Message, prompt: str, state: FSMConte
 async def draw_command(message: types.Message):
     user_id = message.from_user.id
     
-    # Если нажата кнопка без текста
     if message.text == "🎨 Нарисовать картинку":
         await message.answer(
             "🎨 **Как нарисовать картинку:**\n"
@@ -617,45 +687,30 @@ async def stats_command(message: types.Message):
     today = date.today().isoformat()
 
     async with aiosqlite.connect('users.db') as db:
-        cursor = await db.execute("SELECT COUNT(*) FROM users")
-        total_users = (await cursor.fetchone())[0]
-
-        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE joined_date = ?", (today,))
-        new_today = (await cursor.fetchone())[0]
-
-        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE last_request_date = ?", (today,))
-        active_today = (await cursor.fetchone())[0]
-
-        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE is_premium = 1 OR permanent_premium = 1")
-        premium_users = (await cursor.fetchone())[0]
-
-        cursor = await db.execute("SELECT COUNT(*) FROM users WHERE permanent_premium = 1")
-        permanent_premium = (await cursor.fetchone())[0]
-
-        cursor = await db.execute("SELECT SUM(requests_today) FROM users WHERE last_request_date = ?", (today,))
-        total_requests_today = (await cursor.fetchone())[0] or 0
-
-        cursor = await db.execute(
-            "SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5"
-        )
-        last_users = await cursor.fetchall()
+        total = (await (await db.execute("SELECT COUNT(*) FROM users")).fetchone())[0]
+        new = (await (await db.execute("SELECT COUNT(*) FROM users WHERE joined_date = ?", (today,))).fetchone())[0]
+        active = (await (await db.execute("SELECT COUNT(*) FROM users WHERE last_request_date = ?", (today,))).fetchone())[0]
+        premium = (await (await db.execute("SELECT COUNT(*) FROM users WHERE is_premium = 1 OR permanent_premium = 1")).fetchone())[0]
+        perm = (await (await db.execute("SELECT COUNT(*) FROM users WHERE permanent_premium = 1")).fetchone())[0]
+        reqs = (await (await db.execute("SELECT SUM(requests_today) FROM users WHERE last_request_date = ?", (today,))).fetchone())[0] or 0
+        last = await (await db.execute("SELECT user_id, username, first_name, joined_date FROM users ORDER BY joined_date DESC LIMIT 5")).fetchall()
 
     stats_text = (
         "📊 **Статистика бота**\n\n"
-        f"👥 **Всего пользователей:** {total_users}\n"
-        f"🆕 **Новых сегодня:** {new_today}\n"
-        f"⚡ **Активных сегодня:** {active_today}\n"
-        f"💬 **Запросов сегодня:** {total_requests_today}\n"
-        f"💎 **Premium всего:** {premium_users}\n"
-        f"   ├─ Обычный: {premium_users - permanent_premium}\n"
-        f"   └─ Навсегда: {permanent_premium}\n\n"
+        f"👥 **Всего пользователей:** {total}\n"
+        f"🆕 **Новых сегодня:** {new}\n"
+        f"⚡ **Активных сегодня:** {active}\n"
+        f"💬 **Запросов сегодня:** {reqs}\n"
+        f"💎 **Premium всего:** {premium}\n"
+        f"   ├─ Обычный: {premium - perm}\n"
+        f"   └─ Навсегда: {perm}\n\n"
         "📝 **Последние 5 пользователей:**\n"
     )
 
-    for user in last_users:
-        user_id, username, first_name, joined = user
-        name_display = first_name or username or "без имени"
-        stats_text += f"   • {name_display} (ID: `{user_id}`) — {joined}\n"
+    for u in last:
+        uid, uname, fname, joined = u
+        name_display = fname or uname or "без имени"
+        stats_text += f"   • {name_display} (ID: `{uid}`) — {joined}\n"
 
     await message.answer(stats_text, parse_mode="Markdown")
 
@@ -916,3 +971,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     finally:
         asyncio.run(on_shutdown())
+        
