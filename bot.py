@@ -174,11 +174,13 @@ async def help_command(message: types.Message):
         "🎭 Поздравления: `/greet бабушку с 8 марта`\n"
         "🎨 Генерация: `/draw кот в космосе`\n"
         "💎 Premium: 75₽/мес, 200₽/3мес, 555₽/год, 1488₽ навсегда.\n"
-        "❓ @TKA_AI_Help",
+        "❓ @TKA_AI_Help"
+    )
+    await message.answer(
+        help_text,
         parse_mode="Markdown",
         disable_web_page_preview=True
     )
-    await message.answer(help_text, parse_mode="Markdown", disable_web_page_preview=True)
 
 # ========== КОМАНДА СПИСОК КОМАНД ==========
 @dp.message(Command("mycommands"))
@@ -971,4 +973,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     finally:
         asyncio.run(on_shutdown())
-        
