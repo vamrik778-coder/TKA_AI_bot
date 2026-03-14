@@ -24,7 +24,7 @@ from database import (
     check_image_limit, update_image_counter
 )
 from neural import get_neural_response
-from nanobanana import NanoBananaAPI  # Пока оставим, потом заменим на PollinationsAPI
+from pollinations import PollinationsAPI  # Пока оставим, потом заменим на PollinationsAPI
 
 print("=" * 50)
 print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS, IMAGE GENERATION")
@@ -40,9 +40,8 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # ===== ИНИЦИАЛИЗАЦИЯ ГЕНЕРАЦИИ =====
-# nano = NanoBananaAPI()  # временно отключим, пока не переключим API
-# Временно, пока чиним генерацию:
-nano = None
+from pollinations import PollinationsAPI
+nano = PollinationsAPI()
 
 # ========== СОСТОЯНИЯ ==========
 class PhotoStates(StatesGroup):
