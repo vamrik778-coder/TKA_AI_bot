@@ -41,12 +41,6 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# ===== ПРИНУДИТЕЛЬНЫЙ СБРОС ВЕБХУКА =====
-async def force_delete_webhook():
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Вебхук сброшен")
-
-asyncio.create_task(force_delete_webhook())
 
 # ===== ИНИЦИАЛИЗАЦИЯ ГЕНЕРАЦИИ =====
 nano = PollinationsAPI()
@@ -987,9 +981,15 @@ async def on_shutdown():
     await asyncio.sleep(1)
     print("✅ Всё закрыто")
 
+
 # ========== ЗАПУСК ==========
 async def main():
     print("📦 Вход в функцию main()")
+    
+    # Принудительный сброс вебхука
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Вебхук сброшен")
+    
     await init_db()
     
     # Принудительный сброс лимитов при каждом запуске
