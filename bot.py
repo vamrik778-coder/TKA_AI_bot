@@ -978,12 +978,15 @@ async def on_shutdown():
 async def main():
     print("📦 Вход в функцию main()")
     await init_db()
-# Принудительный сброс лимитов при каждом запуске (только для админа)
-async with aiosqlite.connect('users.db') as db:
-    await db.execute("UPDATE users SET requests_today = 0, last_request_date = ?", (str(date.today()),))
-    await db.execute("UPDATE users SET images_today = 0, last_image_date = ?", (str(date.today()),))
-    await db.commit()
-print("🔄 Лимиты всех пользователей сброшены при запуске")
+    
+    # Принудительный сброс лимитов при каждом запуске (только для админа)
+    import aiosqlite
+    async with aiosqlite.connect('users.db') as db:
+        await db.execute("UPDATE users SET requests_today = 0, last_request_date = ?", (str(date.today()),))
+        await db.execute("UPDATE users SET images_today = 0, last_image_date = ?", (str(date.today()),))
+        await db.commit()
+    print("🔄 Лимиты всех пользователей сброшены при запуске")
+    
     print("🚀 Бот запускается...")
 
     scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
