@@ -410,18 +410,18 @@ async def draw_command(message: types.Message):
         )
         return
     
-    status = await message.answer("🍌 **Nano Banana рисует...** Это займёт 5–10 секунд", parse_mode="Markdown")
+    status = await message.answer("🎨 **Генерирую картинку...** Это займёт 5–10 секунд", parse_mode="Markdown")
     
     image_bytes = await nano.generate_image(prompt)
     
-    
-        if image_bytes:
+    if image_bytes:
         new_count = await update_image_counter(user_id)
         await status.delete()
+        from aiogram.types import BufferedInputFile
         photo_file = BufferedInputFile(image_bytes, filename="image.jpg")
         await message.answer_photo(
             photo=photo_file,
-            caption=f"🍌 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
+            caption=f"🎨 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
             parse_mode="Markdown",
             reply_markup=get_main_keyboard()
         )
