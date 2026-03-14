@@ -414,21 +414,22 @@ async def draw_command(message: types.Message):
     
     image_bytes = await nano.generate_image(prompt)
     
-    if image_bytes:
-    new_count = await update_image_counter(user_id)
-    await status.delete()
-    photo_file = BufferedInputFile(image_bytes, filename="image.jpg")
-    await message.answer_photo(
-        photo=photo_file,
-        caption=f"🍌 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
-        parse_mode="Markdown",
-        reply_markup=get_main_keyboard()
-    )
-else:
-    await status.edit_text(
-        "❌ Не удалось сгенерировать картинку.\n"
-        "Попробуй другой запрос или напиши на английском."
-    )
+    
+        if image_bytes:
+        new_count = await update_image_counter(user_id)
+        await status.delete()
+        photo_file = BufferedInputFile(image_bytes, filename="image.jpg")
+        await message.answer_photo(
+            photo=photo_file,
+            caption=f"🍌 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
+            parse_mode="Markdown",
+            reply_markup=get_main_keyboard()
+        )
+    else:
+        await status.edit_text(
+            "❌ Не удалось сгенерировать картинку.\n"
+            "Попробуй другой запрос или напиши на английском."
+        )
 
 # ========== PREMIUM МЕНЮ ==========
 @dp.message(lambda message: message.text == "💎 Premium")
