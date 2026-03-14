@@ -167,7 +167,7 @@ async def check_limit(user_id: int) -> tuple:
 async def check_image_limit(user_id: int) -> tuple:
     """Проверяет лимит на генерацию картинок (5 для обычных, 10 для Premium)"""
     user = await get_user(user_id)
-
+    
     # Индексы:
     # 6 — is_premium
     # 7 — premium_until
@@ -175,6 +175,7 @@ async def check_image_limit(user_id: int) -> tuple:
     # 11 — images_today
     # 12 — last_image_date
 
+    # Определяем лимит
     if len(user) > 8 and user[8]:  # permanent_premium
         DAILY_LIMIT = 10
     elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
@@ -182,13 +183,16 @@ async def check_image_limit(user_id: int) -> tuple:
     else:
         DAILY_LIMIT = 5
 
+    # ЗАЩИТА: преобразуем в число, если вдруг строка
     images_today = user[11] if len(user) > 11 else 0
+    try:
+        images_today = int(images_today)
+    except (ValueError, TypeError):
+        images_today = 0
 
     if images_today >= DAILY_LIMIT:
         return False, DAILY_LIMIT, images_today
     return True, DAILY_LIMIT, images_today
-
-async def update_image_counter(user_id: int):
     """Увеличивает счётчик сгенерированных картинок"""
     today = str(date.today())
     async with aiosqlite.connect(DB_NAME) as db:
