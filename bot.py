@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton,
-    FSInputFile, BufferedInputFile  # ← ЭТОТ ИМПОРТ ДОБАВЛЕН!
+    FSInputFile, BufferedInputFile
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -24,7 +24,9 @@ from database import (
     check_image_limit, update_image_counter
 )
 from neural import get_neural_response
-from pollinations import PollinationsAPI  # Пока оставим, потом заменим на PollinationsAPI
+from pollinations import PollinationsAPI
+
+from aiogram.exceptions import TelegramConflictError
 
 print("=" * 50)
 print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS, IMAGE GENERATION")
@@ -39,8 +41,14 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+# ===== ПРИНУДИТЕЛЬНЫЙ СБРОС ВЕБХУКА =====
+async def force_delete_webhook():
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Вебхук сброшен")
+
+asyncio.create_task(force_delete_webhook())
+
 # ===== ИНИЦИАЛИЗАЦИЯ ГЕНЕРАЦИИ =====
-from pollinations import PollinationsAPI
 nano = PollinationsAPI()
 
 # ========== СОСТОЯНИЯ ==========
@@ -114,6 +122,7 @@ def detect_subject(text: str) -> str:
         return 'music'
     
     return None
+
 # ========== КОМАНДА СТАРТ ==========
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
@@ -272,7 +281,8 @@ async def limit_h(m: types.Message):
         f"🎨 **Картинки:** {img_used}/{img_lim}",
         parse_mode="Markdown"
     )
-    # ========== РЕЖИМ ОТВЕТА ==========
+
+# ========== РЕЖИМ ОТВЕТА ==========
 @dp.message(lambda m: m.text == "⚙️ Режим ответа")
 async def mode_h(m: types.Message):
     current = await get_answer_mode(m.from_user.id)
@@ -417,7 +427,6 @@ async def draw_command(message: types.Message):
     if image_bytes:
         new_count = await update_image_counter(user_id)
         await status.delete()
-        from aiogram.types import BufferedInputFile
         photo_file = BufferedInputFile(image_bytes, filename="image.jpg")
         await message.answer_photo(
             photo=photo_file,
@@ -659,7 +668,7 @@ async def admin_give_callback(callback: types.CallbackQuery):
 
     await callback.message.edit_text(text)
 
-    # ========== ВРЕМЕННАЯ КОМАНДА ДЛЯ СБРОСА ЛИМИТОВ ==========
+# ========== ВРЕМЕННАЯ КОМАНДА ДЛЯ СБРОСА ЛИМИТОВ ==========
 @dp.message(Command("resetme"))
 async def reset_me(message: types.Message):
     """Сбрасывает личный лимит пользователя"""
@@ -758,7 +767,7 @@ async def handle_db_file(message: types.Message):
 
     await message.answer("✅ База данных успешно восстановлена!")
 
-    # ========== АДМИН-КОМАНДА ДЛЯ СБРОСА ВСЕХ ЛИМИТОВ ==========
+# ========== АДМИН-КОМАНДА ДЛЯ СБРОСА ВСЕХ ЛИМИТОВ ==========
 @dp.message(Command("fix_all_limits"))
 async def fix_all_limits(message: types.Message):
     """Сбрасывает лимиты у всех пользователей (только для админа)"""
@@ -770,9 +779,7 @@ async def fix_all_limits(message: types.Message):
     today = str(date.today())
     
     async with aiosqlite.connect('users.db') as db:
-        # Сбрасываем запросы у всех
         await db.execute("UPDATE users SET requests_today = 0, last_request_date = ?", (today,))
-        # Сбрасываем картинки у всех
         await db.execute("UPDATE users SET images_today = 0, last_image_date = ?", (today,))
         await db.commit()
     
@@ -971,15 +978,21 @@ async def send_holiday_greeting():
     except:
         pass
 
-# ========== ЗАПУСК ==========
+# ========== ЗАВЕРШЕНИЕ ==========
 async def on_shutdown():
+    print("🛑 Завершаю работу...")
+    await bot.close()
+    await dp.storage.close()
     await nano.close()
+    await asyncio.sleep(1)
+    print("✅ Всё закрыто")
 
+# ========== ЗАПУСК ==========
 async def main():
     print("📦 Вход в функцию main()")
     await init_db()
     
-    # Принудительный сброс лимитов при каждом запуске (только для админа)
+    # Принудительный сброс лимитов при каждом запуске
     import aiosqlite
     async with aiosqlite.connect('users.db') as db:
         await db.execute("UPDATE users SET requests_today = 0, last_request_date = ?", (str(date.today()),))
@@ -1000,5 +1013,8 @@ if __name__ == "__main__":
     print("🟢 Точка входа")
     try:
         asyncio.run(main())
+    except TelegramConflictError:
+        print("❌ Обнаружен конфликт! Останавливаюсь, чтобы не мешать другому экземпляру.")
+        sys.exit(1)
     finally:
         asyncio.run(on_shutdown())
