@@ -1,76 +1,34 @@
 import aiohttp
-import base64
-import json
 from typing import Optional
 
-class NanoBananaAPI:
-    """Клиент для Nano Banana Pro (felo.ai)"""
+class PollinationsAPI:
+    """Клиент для Pollinations AI — работает без ключей и заморочек"""
     
     def __init__(self):
-        self.base_url = "https://api.felo.ai/v1"
-        self.session = None
-    
-    async def _get_session(self):
-        if not self.session:
-            self.session = aiohttp.ClientSession()
-        return self.session
+        self.base_url = "https://image.pollinations.ai/prompt"
     
     async def generate_image(self, prompt: str) -> Optional[bytes]:
         """
-        Генерирует картинку по промпту
-        Возвращает байты изображения или None
+        Генерирует картинку по промпту через простой GET-запрос
         """
+        # Заменяем пробелы на %20 для URL
+        import urllib.parse
+        encoded_prompt = urllib.parse.quote(prompt)
+        url = f"{self.base_url}/{encoded_prompt}"
+        
+        print(f"🎨 Запрос к Pollinations: {prompt[:50]}...")
+        
         try:
-            session = await self._get_session()
-            
-            headers = {
-                "Authorization": "Bearer free",
-                "Content-Type": "application/json"
-            }
-            
-            payload = {
-                "prompt": prompt,
-                "model": "gemini-3-pro-image-preview",
-                "width": 1024,
-                "height": 1024,
-                "num_images": 1
-            }
-            
-            print(f"🎨 Отправляю запрос: {prompt[:50]}...")
-            
-            async with session.post(
-                f"{self.base_url}/gemini-image-gen",
-                headers=headers,
-                json=payload,
-                timeout=30
-            ) as resp:
-                
-                if resp.status != 200:
-                    error = await resp.text()
-                    print(f"❌ Ошибка API: {resp.status} - {error[:100]}")
-                    return None
-                
-                data = await resp.json()
-                
-                if "images" in data and data["images"]:
-                    img_base64 = data["images"][0]
-                    img_bytes = base64.b64decode(img_base64)
-                    print(f"✅ Готово! Размер: {len(img_bytes)} байт")
-                    return img_bytes
-                elif "image" in data:
-                    img_base64 = data["image"]
-                    img_bytes = base64.b64decode(img_base64)
-                    print(f"✅ Готово! Размер: {len(img_bytes)} байт")
-                    return img_bytes
-                else:
-                    print(f"❌ Странный ответ: {data.keys()}")
-                    return None
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=30) as resp:
+                    if resp.status != 200:
+                        print(f"❌ Ошибка HTTP: {resp.status}")
+                        return None
+                    
+                    image_bytes = await resp.read()
+                    print(f"✅ Готово! Размер: {len(image_bytes)} байт")
+                    return image_bytes
                     
         except Exception as e:
             print(f"❌ Ошибка генерации: {e}")
             return None
-    
-    async def close(self):
-        """Закрываем сессию"""
-        if self.session:
-            await self.session.close()
