@@ -10,3 +10,4 @@ aiofiles==24.1.0
 certifi==2025.1.31
 aiohttp==3.10.11
 apscheduler
+aiohttp

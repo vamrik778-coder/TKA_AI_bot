@@ -19,7 +19,9 @@ async def init_db():
                 permanent_premium BOOLEAN DEFAULT 0,
                 joined_date TEXT,
                 current_subject TEXT DEFAULT 'mathematics',
-                answer_mode TEXT DEFAULT 'full'
+                answer_mode TEXT DEFAULT 'full',
+                images_today INTEGER DEFAULT 0,
+                last_image_date TEXT
             )
         ''')
 
@@ -43,9 +45,18 @@ async def init_db():
             await db.execute("ALTER TABLE users ADD COLUMN answer_mode TEXT DEFAULT 'full'")
             print("➕ Добавлена колонка answer_mode")
 
+        if 'images_today' not in columns:
+            await db.execute("ALTER TABLE users ADD COLUMN images_today INTEGER DEFAULT 0")
+            print("➕ Добавлена колонка images_today")
+
+        if 'last_image_date' not in columns:
+            await db.execute("ALTER TABLE users ADD COLUMN last_image_date TEXT")
+            print("➕ Добавлена колонка last_image_date")
+
         await db.commit()
     print("✅ База данных готова")
 
+# ========== РЕЖИМ ОТВЕТА ==========
 async def set_answer_mode(user_id: int, mode: str):
     """Устанавливает режим ответа: 'full', 'short' или 'cute'"""
     async with aiosqlite.connect(DB_NAME) as db:
@@ -65,6 +76,7 @@ async def get_answer_mode(user_id: int) -> str:
         result = await cursor.fetchone()
         return result[0] if result else 'full'
 
+# ========== ПОЛЬЗОВАТЕЛИ ==========
 async def get_user(user_id: int):
     """Возвращает пользователя из БД или создаёт нового"""
     async with aiosqlite.connect(DB_NAME) as db:
@@ -76,10 +88,10 @@ async def get_user(user_id: int):
             await db.execute(
                 """
                 INSERT INTO users
-                (user_id, last_request_date, joined_date, requests_today, current_subject, answer_mode)
-                VALUES (?, ?, ?, 0, 'mathematics', 'full')
+                (user_id, last_request_date, joined_date, requests_today, current_subject, answer_mode, images_today, last_image_date)
+                VALUES (?, ?, ?, 0, 'mathematics', 'full', 0, ?)
                 """,
-                (user_id, today, today)
+                (user_id, today, today, today)
             )
             await db.commit()
 
@@ -101,6 +113,7 @@ async def get_user_subject(user_id: int) -> str:
         result = await cursor.fetchone()
         return result[0] if result else 'mathematics'
 
+# ========== ЛИМИТЫ ЗАПРОСОВ ==========
 async def update_user_requests(user_id: int):
     """Обновляет счётчик запросов"""
     today = str(date.today())
@@ -150,8 +163,58 @@ async def check_limit(user_id: int) -> tuple:
         return False, DAILY_LIMIT, requests_today
     return True, DAILY_LIMIT, requests_today
 
+# ========== ЛИМИТЫ ГЕНЕРАЦИИ КАРТИНОК ==========
+async def check_image_limit(user_id: int) -> tuple:
+    """Проверяет лимит на генерацию картинок (5 для обычных, 10 для Premium)"""
+    user = await get_user(user_id)
+
+    # Индексы:
+    # 6 — is_premium
+    # 7 — premium_until
+    # 8 — permanent_premium
+    # 11 — images_today
+    # 12 — last_image_date
+
+    if len(user) > 8 and user[8]:  # permanent_premium
+        DAILY_LIMIT = 10
+    elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
+        DAILY_LIMIT = 10
+    else:
+        DAILY_LIMIT = 5
+
+    images_today = user[11] if len(user) > 11 else 0
+
+    if images_today >= DAILY_LIMIT:
+        return False, DAILY_LIMIT, images_today
+    return True, DAILY_LIMIT, images_today
+
+async def update_image_counter(user_id: int):
+    """Увеличивает счётчик сгенерированных картинок"""
+    today = str(date.today())
+    async with aiosqlite.connect(DB_NAME) as db:
+        cursor = await db.execute(
+            "SELECT images_today, last_image_date FROM users WHERE user_id = ?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        if row:
+            images, last_date = row
+            if last_date != today:
+                images = 1
+                last_date = today
+            else:
+                images += 1
+            await db.execute(
+                "UPDATE users SET images_today = ?, last_image_date = ? WHERE user_id = ?",
+                (images, last_date, user_id)
+            )
+            await db.commit()
+            return images
+        return 0
+
+# ========== PREMIUM ==========
 async def activate_premium(user_id: int, days: int = None, permanent: bool = False):
-    """Активирует Premium"""
+    """Активирует Premium для пользователя"""
     if days is None and not permanent:
         days = 30
 

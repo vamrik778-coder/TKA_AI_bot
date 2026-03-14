@@ -20,12 +20,14 @@ from holidays import get_today_holiday, get_random_greeting_style
 from database import (
     init_db, check_limit, update_user_requests,
     get_user, set_user_subject, get_user_subject,
-    activate_premium, get_answer_mode, set_answer_mode
+    activate_premium, get_answer_mode, set_answer_mode,
+    check_image_limit, update_image_counter
 )
 from neural import get_neural_response
+from nanobanana import NanoBananaAPI
 
 print("=" * 50)
-print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS")
+print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS, IMAGE GENERATION")
 print("=" * 50)
 
 API_TOKEN = '8690504647:AAGxxUC9QC-tNwKYVsQLaZxD6GJyN4x1GD8'
@@ -35,6 +37,9 @@ ADMIN_IDS = [ADMIN_ID]
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+
+# ===== ИНИЦИАЛИЗАЦИЯ NANO BANANA =====
+nano = NanoBananaAPI()
 
 class PhotoStates(StatesGroup):
     waiting_for_task_description = State()
@@ -46,7 +51,8 @@ def get_main_keyboard():
     buttons = [
         [KeyboardButton(text="🎓 Предметы"), KeyboardButton(text="📊 Мой лимит")],
         [KeyboardButton(text="💎 Premium"), KeyboardButton(text="⚙️ Режим ответа")],
-        [KeyboardButton(text="🎉 Праздник сегодня"), KeyboardButton(text="🎭 Поздравь")]
+        [KeyboardButton(text="🎉 Праздник сегодня"), KeyboardButton(text="🎭 Поздравь")],
+        [KeyboardButton(text="🎨 Нарисовать картинку"), KeyboardButton(text="📋 Мои команды")]
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
 
@@ -106,7 +112,8 @@ async def start_command(message: types.Message):
         "• 10 предметов, фото, автоопределение\n"
         "• 3 режима (полный, краткий, пупсик)\n"
         "• 🎉 Поздравляю с праздниками\n"
-        "• 🎭 Генерирую поздравления\n\n"
+        "• 🎭 Генерирую поздравления\n"
+        "• 🎨 Рисую картинки по тексту\n\n"
         f"📊 Твой лимит: {used}/{limit}\n\n"
         "❓ [Группа поддержки](t.me/TKA_AI_Help)\n"
         "⚡ Выбери предмет ниже или нажми кнопку!"
@@ -123,10 +130,35 @@ async def help_command(message: types.Message):
         "⚙️ Режимы: 📖 полный, ⚡ краткий, 🥰 пупсик.\n"
         "🎉 Праздники: проверяю сам или по команде `/holiday`\n"
         "🎭 Поздравления: `/greet бабушку с 8 марта`\n"
+        "🎨 Генерация: `/draw кот в космосе`\n"
         "💎 Premium: 75₽/мес, 200₽/3мес, 555₽/год, 1488₽ навсегда.\n"
         "❓ @TKA_AI_Help",
         parse_mode="Markdown", disable_web_page_preview=True
     )
+
+@dp.message(Command("mycommands"))
+@dp.message(lambda m: m.text == "📋 Мои команды")
+async def user_commands(message: types.Message):
+    commands_text = (
+        "📋 **Доступные команды**\n\n"
+        "👤 **Основные:**\n"
+        "/start — запустить бота\n"
+        "/help — помощь\n"
+        "/mycommands — этот список\n\n"
+        "🎨 **Генерация:**\n"
+        "/draw [текст] — нарисовать картинку\n"
+        "/image [текст] — то же самое\n\n"
+        "🎭 **Поздравления:**\n"
+        "/greet [текст] — создать поздравление\n"
+        "/holiday — какой сегодня праздник\n\n"
+        "🎓 **Предметы:**\n"
+        "Доступны через кнопку «🎓 Предметы» в меню\n\n"
+        "⚙️ **Режимы ответа:**\n"
+        "Меняются через кнопку «⚙️ Режим ответа»\n\n"
+        "❓ **Вопросы:**\n"
+        "[Группа поддержки](t.me/TKA_AI_Help)"
+    )
+    await message.answer(commands_text, parse_mode="Markdown", disable_web_page_preview=True)
 
 @dp.message(lambda m: m.text == "🎓 Предметы")
 async def subjects_menu(message: types.Message):
@@ -189,8 +221,12 @@ async def mus_h(m: types.Message):
 @dp.message(lambda m: m.text == "📊 Мой лимит")
 async def limit_h(m: types.Message):
     _, lim, used = await check_limit(m.from_user.id)
-    await m.answer(f"📊 Использовано: {used}/{lim}")
-    # ========== РЕЖИМ ОТВЕТА ==========
+    img_lim, img_used = await check_image_limit(m.from_user.id)  # упрощённо
+    await m.answer(
+        f"📊 **Запросы:** {used}/{lim}\n"
+        f"🎨 **Картинки:** {img_used}/{lim}",
+        parse_mode="Markdown"
+    )# ========== РЕЖИМ ОТВЕТА ==========
 @dp.message(lambda m: m.text == "⚙️ Режим ответа")
 async def mode_h(m: types.Message):
     current = await get_answer_mode(m.from_user.id)
@@ -207,21 +243,23 @@ async def mode_h(m: types.Message):
 
 @dp.callback_query(lambda c: c.data.startswith('mode_'))
 async def mode_cb(c: types.CallbackQuery):
-    data = {
+    user_id = c.from_user.id
+    mode_data = {
         'mode_full': ('full', '📖 Полный', 'Теперь бот будет объяснять подробно, с шагами и примерами.'),
         'mode_short': ('short', '⚡ Краткий', 'Теперь бот будет отвечать только по существу.'),
         'mode_cute': ('cute', '🥰 Пупсик', 'Бот будет милым и ласковым, но в рамках приличия 💕'),
     }
-    if c.data in data:
-        db_mode, name, desc = data[c.data]
-        await set_answer_mode(c.from_user.id, db_mode)
-        await c.message.edit_text(f"✅ **Режим ответа:** {name}\n\n{desc}")
+    
+    if c.data in mode_data:
+        db_mode, display_name, description = mode_data[c.data]
+        await set_answer_mode(user_id, db_mode)
+        await c.message.edit_text(f"✅ **Режим ответа:** {display_name}\n\n{description}")
     elif c.data == "mode_back":
         await c.message.delete()
         await c.message.answer("Главное меню", reply_markup=get_main_keyboard())
     await c.answer()
 
-# ========== ПРАЗДНИКИ ==========
+# ========== ПРАЗДНИКИ И ПОЗДРАВЛЕНИЯ ==========
 @dp.message(Command("holiday"))
 @dp.message(lambda m: m.text == "🎉 Праздник сегодня")
 async def holiday_command(message: types.Message):
@@ -239,26 +277,21 @@ async def holiday_command(message: types.Message):
             parse_mode="Markdown"
         )
 
-# ========== ПОЗДРАВЛЕНИЯ ==========
 @dp.message(Command("greet"))
 @dp.message(lambda m: m.text == "🎭 Поздравь")
 async def greet_command(message: types.Message, state: FSMContext):
     parts = message.text.split(maxsplit=1)
-
-    if len(parts) < 2 and "поздравь" not in parts[0].lower():
+    
+    if len(parts) < 2:
         await message.answer(
             "🎭 **Напиши, кого и с чем поздравить**\n"
-            "Например: «бабушку с 8 марта» или «друга с днём рождения»\n"
-            "Или просто отправь текст после команды: `/greet маму с днём рождения`"
+            "Например: «бабушку с 8 марта» или «друга с днём рождения»"
         )
         await state.set_state(GreetStates.waiting_for_prompt)
         return
-
-    if len(parts) > 1:
-        prompt = parts[1]
-        await generate_greeting(message, prompt, state)
-    else:
-        await state.set_state(GreetStates.waiting_for_prompt)
+    
+    prompt = parts[1]
+    await generate_greeting(message, prompt, state)
 
 @dp.message(GreetStates.waiting_for_prompt)
 async def process_greeting_prompt(message: types.Message, state: FSMContext):
@@ -266,72 +299,84 @@ async def process_greeting_prompt(message: types.Message, state: FSMContext):
 
 async def generate_greeting(message: types.Message, prompt: str, state: FSMContext):
     user_id = message.from_user.id
-
+    
     can_request, limit, used = await check_limit(user_id)
     if not can_request:
         await message.answer(f"❌ Лимит ({limit}) на сегодня исчерпан!")
         await state.clear()
         return
-
+    
     thinking = await message.answer("🎭 Придумываю красивое поздравление...")
-    full_prompt = f"Придумай красивое, душевное поздравление: {prompt}. Используй смайлики."
+    full_prompt = f"Придумай красивое, душевное поздравление: {prompt}. Используй смайлики, будь оригинальным."
     mode = await get_answer_mode(user_id)
     result = await get_neural_response("russian", full_prompt, mode)
-
+    
     await thinking.delete()
     await message.answer(result, parse_mode="Markdown")
-
+    
     await update_user_requests(user_id)
     await state.clear()
 
-# ========== ПЛАНИРОВЩИК ПРАЗДНИКОВ ==========
-async def send_holiday_greeting():
-    print(f"🔔 Проверяем праздники на {datetime.now().strftime('%d.%m.%Y')}...")
-
-    holiday = get_today_holiday()
-    if not holiday:
-        print("  Сегодня нет праздников")
-        return
-
-    holiday_name = holiday["name"]
-    style_key = holiday["style_key"]
-    random_epithet = get_random_greeting_style(style_key)
-
-    print(f"🎉 СЕГОДНЯ ПРАЗДНИК: {holiday_name}")
-
-    import aiosqlite
-    async with aiosqlite.connect('users.db') as db:
-        cursor = await db.execute("SELECT user_id FROM users")
-        users = await cursor.fetchall()
-
-    greeting_text = (
-        f"🎊 **{random_epithet.title()} {holiday_name}!** 🎊\n\n"
-        f"✨ Пусть этот день подарит радость и улыбки!\n"
-        f"🤖 Ваш TKA AI желает вам всего самого наилучшего.\n"
-        f"💫 Оставайтесь такими же замечательными!\n\n"
-        f"#праздник #поздравление"
-    )
-
-    sent_count = 0
-    for (user_id,) in users:
-        try:
-            await bot.send_message(user_id, greeting_text, parse_mode="Markdown")
-            sent_count += 1
-            await asyncio.sleep(0.05)
-        except:
-            pass
-
-    print(f"✅ Поздравления отправлены {sent_count} пользователям")
-
-    try:
-        await bot.send_message(
-            ADMIN_ID,
-            f"🎉 **Сегодняшний праздник:** {holiday_name}\n📨 Отправлено {sent_count} пользователям",
+# ========== ГЕНЕРАЦИЯ КАРТИНОК ==========
+@dp.message(Command("draw"))
+@dp.message(Command("image"))
+@dp.message(lambda m: m.text == "🎨 Нарисовать картинку")
+async def draw_command(message: types.Message):
+    user_id = message.from_user.id
+    
+    # Если нажата кнопка без текста
+    if message.text == "🎨 Нарисовать картинку":
+        await message.answer(
+            "🎨 **Как нарисовать картинку:**\n"
+            "Напиши команду:\n"
+            "`/draw кот в космосе`\n\n"
+            "Или на английском (работает лучше):\n"
+            "`/draw cat in space`",
             parse_mode="Markdown"
         )
-    except:
-        pass
-        # ========== PREMIUM МЕНЮ ==========
+        return
+    
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.answer(
+            "❓ **Как пользоваться:**\n"
+            "Напиши `/draw кот в космосе`\n"
+            "Или на английском: `/draw cat in space` — так работает лучше!",
+            parse_mode="Markdown"
+        )
+        return
+    
+    prompt = parts[1]
+    
+    can_gen, limit, used = await check_image_limit(user_id)
+    if not can_gen:
+        await message.answer(
+            f"❌ Лимит ({limit}) на сегодня исчерпан!\n"
+            f"Приобрети Premium для 10 картинок в день.",
+            reply_markup=get_main_keyboard()
+        )
+        return
+    
+    status = await message.answer("🍌 **Nano Banana рисует...** Это займёт 5–10 секунд", parse_mode="Markdown")
+    
+    image_bytes = await nano.generate_image(prompt)
+    
+    if image_bytes:
+        new_count = await update_image_counter(user_id)
+        await status.delete()
+        await message.answer_photo(
+            photo=image_bytes,
+            caption=f"🍌 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
+            parse_mode="Markdown",
+            reply_markup=get_main_keyboard()
+        )
+    else:
+        await status.edit_text(
+            "❌ Не удалось сгенерировать картинку.\n"
+            "Попробуй другой запрос или напиши на английском."
+        )
+
+# ========== PREMIUM МЕНЮ ==========
 @dp.message(lambda message: message.text == "💎 Premium")
 async def premium_menu(message: types.Message):
     user_id = message.from_user.id
@@ -339,7 +384,7 @@ async def premium_menu(message: types.Message):
 
     status_text = ""
     if len(user) > 8 and user[8]:
-        status_text = "✨ **У тебя уже есть ПОСТОЯННЫЙ Premium!** Спасибо за поддержку!\n\n"
+        status_text = "✨ **У тебя уже есть ПОСТОЯННЫЙ Premium!**\n\n"
     elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
         status_text = f"✨ **У тебя уже есть Premium до {user[7]}!**\n\n"
 
@@ -355,9 +400,9 @@ async def premium_menu(message: types.Message):
         f"{status_text}"
         "💎 **Premium подписка** 💎\n\n"
         "✅ 50 запросов в день\n"
+        "✅ 10 генераций картинок в день\n"
         "⚡ Приоритетная скорость\n"
-        "📚 Доступ ко всем предметам\n"
-        "🎁 Поддержка разработчика\n\n"
+        "📚 Доступ ко всем предметам\n\n"
         "💰 **Тарифы:**\n"
         "• 1 месяц — 75₽\n"
         "• 3 месяца — 200₽\n"
@@ -801,7 +846,58 @@ async def handle_task(message: types.Message):
         reply_markup=get_main_keyboard()
     )
 
+# ========== ПЛАНИРОВЩИК ПРАЗДНИКОВ ==========
+async def send_holiday_greeting():
+    print(f"🔔 Проверяем праздники на {datetime.now().strftime('%d.%m.%Y')}...")
+
+    holiday = get_today_holiday()
+    if not holiday:
+        print("  Сегодня нет праздников")
+        return
+
+    holiday_name = holiday["name"]
+    style_key = holiday["style_key"]
+    random_epithet = get_random_greeting_style(style_key)
+
+    print(f"🎉 СЕГОДНЯ ПРАЗДНИК: {holiday_name}")
+
+    import aiosqlite
+    async with aiosqlite.connect('users.db') as db:
+        cursor = await db.execute("SELECT user_id FROM users")
+        users = await cursor.fetchall()
+
+    greeting_text = (
+        f"🎊 **{random_epithet.title()} {holiday_name}!** 🎊\n\n"
+        f"✨ Пусть этот день подарит радость и улыбки!\n"
+        f"🤖 Ваш TKA AI желает вам всего самого наилучшего.\n"
+        f"💫 Оставайтесь такими же замечательными!\n\n"
+        f"#праздник #поздравление"
+    )
+
+    sent_count = 0
+    for (user_id,) in users:
+        try:
+            await bot.send_message(user_id, greeting_text, parse_mode="Markdown")
+            sent_count += 1
+            await asyncio.sleep(0.05)
+        except:
+            pass
+
+    print(f"✅ Поздравления отправлены {sent_count} пользователям")
+
+    try:
+        await bot.send_message(
+            ADMIN_ID,
+            f"🎉 **Сегодняшний праздник:** {holiday_name}\n📨 Отправлено {sent_count} пользователям",
+            parse_mode="Markdown"
+        )
+    except:
+        pass
+
 # ========== ЗАПУСК ==========
+async def on_shutdown():
+    await nano.close()
+
 async def main():
     print("📦 Вход в функцию main()")
     await init_db()
@@ -816,4 +912,7 @@ async def main():
 
 if __name__ == "__main__":
     print("🟢 Точка входа")
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    finally:
+        asyncio.run(on_shutdown())
