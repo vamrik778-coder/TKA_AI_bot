@@ -29,6 +29,7 @@ async def init_db():
         cursor = await db.execute("PRAGMA table_info(users)")
         columns = [col[1] for col in await cursor.fetchall()]
 
+        # Добавляем недостающие колонки
         if 'permanent_premium' not in columns:
             await db.execute("ALTER TABLE users ADD COLUMN permanent_premium BOOLEAN DEFAULT 0")
             print("➕ Добавлена колонка permanent_premium")
@@ -150,14 +151,18 @@ async def check_limit(user_id: int) -> tuple:
     # 7 — premium_until
     # 8 — permanent_premium
 
-    if len(user) > 8 and user[8]:
+    if len(user) > 8 and user[8]:  # permanent_premium
         DAILY_LIMIT = 100
     elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
         DAILY_LIMIT = 50
     else:
         DAILY_LIMIT = 15
 
-    requests_today = user[4]
+    # Преобразуем в число для надёжности
+    try:
+        requests_today = int(user[4])
+    except (ValueError, TypeError):
+        requests_today = 0
 
     if requests_today >= DAILY_LIMIT:
         return False, DAILY_LIMIT, requests_today
@@ -167,15 +172,7 @@ async def check_limit(user_id: int) -> tuple:
 async def check_image_limit(user_id: int) -> tuple:
     """Проверяет лимит на генерацию картинок (5 для обычных, 10 для Premium)"""
     user = await get_user(user_id)
-    
-    # Индексы:
-    # 6 — is_premium
-    # 7 — premium_until
-    # 8 — permanent_premium
-    # 11 — images_today
-    # 12 — last_image_date
 
-    # Определяем лимит
     if len(user) > 8 and user[8]:  # permanent_premium
         DAILY_LIMIT = 10
     elif len(user) > 7 and user[6] and user[7] and user[7] >= str(date.today()):
@@ -183,17 +180,17 @@ async def check_image_limit(user_id: int) -> tuple:
     else:
         DAILY_LIMIT = 5
 
-    # ЗАЩИТА: преобразуем в число, если вдруг строка
-    images_today = user[11] if len(user) > 11 else 0
+    # Преобразуем в число для надёжности
     try:
-        images_today = int(images_today)
+        images_today = int(user[11]) if len(user) > 11 else 0
     except (ValueError, TypeError):
         images_today = 0
 
     if images_today >= DAILY_LIMIT:
         return False, DAILY_LIMIT, images_today
     return True, DAILY_LIMIT, images_today
-    
+
+async def update_image_counter(user_id: int):
     """Увеличивает счётчик сгенерированных картинок"""
     today = str(date.today())
     async with aiosqlite.connect(DB_NAME) as db:
@@ -204,17 +201,18 @@ async def check_image_limit(user_id: int) -> tuple:
         row = await cursor.fetchone()
         if row:
             images, last_date = row
-            # Преобразуем в число, если вдруг строка
+            # Преобразуем в число
             try:
                 images = int(images)
             except (ValueError, TypeError):
                 images = 0
-                
+
             if last_date != today:
                 images = 1
                 last_date = today
             else:
                 images += 1
+
             await db.execute(
                 "UPDATE users SET images_today = ?, last_image_date = ? WHERE user_id = ?",
                 (images, last_date, user_id)
@@ -222,6 +220,7 @@ async def check_image_limit(user_id: int) -> tuple:
             await db.commit()
             return images
         return 0
+
 # ========== PREMIUM ==========
 async def activate_premium(user_id: int, days: int = None, permanent: bool = False):
     """Активирует Premium для пользователя"""
