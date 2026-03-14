@@ -193,6 +193,7 @@ async def check_image_limit(user_id: int) -> tuple:
     if images_today >= DAILY_LIMIT:
         return False, DAILY_LIMIT, images_today
     return True, DAILY_LIMIT, images_today
+    
     """Увеличивает счётчик сгенерированных картинок"""
     today = str(date.today())
     async with aiosqlite.connect(DB_NAME) as db:
@@ -203,6 +204,12 @@ async def check_image_limit(user_id: int) -> tuple:
         row = await cursor.fetchone()
         if row:
             images, last_date = row
+            # Преобразуем в число, если вдруг строка
+            try:
+                images = int(images)
+            except (ValueError, TypeError):
+                images = 0
+                
             if last_date != today:
                 images = 1
                 last_date = today
@@ -215,7 +222,6 @@ async def check_image_limit(user_id: int) -> tuple:
             await db.commit()
             return images
         return 0
-
 # ========== PREMIUM ==========
 async def activate_premium(user_id: int, days: int = None, permanent: bool = False):
     """Активирует Premium для пользователя"""

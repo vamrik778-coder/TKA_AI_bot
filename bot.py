@@ -21,7 +21,7 @@ from database import (
     init_db, check_limit, update_user_requests,
     get_user, set_user_subject, get_user_subject,
     activate_premium, get_answer_mode, set_answer_mode,
-    check_image_limit, update_image_counter
+    check_image_limit, update_image_counter  # обе функции должны быть
 )
 from neural import get_neural_response
 from nanobanana import NanoBananaAPI
