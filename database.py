@@ -127,6 +127,12 @@ async def update_user_requests(user_id: int):
 
         if row:
             requests, last_date = row
+            # Преобразуем в число для надёжности
+            try:
+                requests = int(requests)
+            except (ValueError, TypeError):
+                requests = 0
+
             if last_date != today:
                 requests = 1
                 last_date = today
@@ -172,6 +178,13 @@ async def check_limit(user_id: int) -> tuple:
 async def check_image_limit(user_id: int) -> tuple:
     """Проверяет лимит на генерацию картинок (5 для обычных, 10 для Premium)"""
     user = await get_user(user_id)
+
+    # Индексы:
+    # 6 — is_premium
+    # 7 — premium_until
+    # 8 — permanent_premium
+    # 11 — images_today
+    # 12 — last_image_date
 
     if len(user) > 8 and user[8]:  # permanent_premium
         DAILY_LIMIT = 10
