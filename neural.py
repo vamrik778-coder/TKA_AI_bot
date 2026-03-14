@@ -1,7 +1,5 @@
 import requests
 import json
-import asyncio
-import math
 import re
 
 # ===== НАСТРОЙКИ YANDEX GPT =====
@@ -10,10 +8,9 @@ YANDEX_FOLDER_ID = "b1gv2lll7placgqgcv61"
 YANDEX_MODEL = "yandexgpt-lite"
 
 def clean_latex(text: str) -> str:
-    """Зачистка LaTeX-мусора"""
+    """Очистка LaTeX-мусора"""
     if not text:
         return ""
-    
     text = text.replace('\\', '')
     text = re.sub(r'frac\{([^}]+)\}\{([^}]+)\}', r'(\1)/(\2)', text)
     text = re.sub(r'\{([^}]+)\}', r'\1', text)
@@ -24,7 +21,9 @@ def clean_latex(text: str) -> str:
 async def get_neural_response(subject: str, task: str, mode: str = 'full') -> str:
     """
     Отправляет запрос в YandexGPT и получает ответ
-    mode: 'full' — подробно, 'short' — кратко, 'cute' — пупсик
+    subject: предмет (mathematics, physics, russian...)
+    task: текст задачи
+    mode: 'full' — подробно, 'short' — кратко, 'cute' — ласково
     """
     
     # Простые вычисления для математики
@@ -38,6 +37,7 @@ async def get_neural_response(subject: str, task: str, mode: str = 'full') -> st
         except:
             pass
 
+    # Перевод предмета на русский
     subject_ru = {
         "mathematics": "математика", "physics": "физика", "chemistry": "химия",
         "biology": "биология", "russian": "русский язык", "history": "история",
@@ -45,18 +45,18 @@ async def get_neural_response(subject: str, task: str, mode: str = 'full') -> st
         "literature": "литература", "music": "музыка"
     }.get(subject, subject)
 
+    # Базовый промпт
     base_prompt = (
         "Ты учитель. Отвечай максимально понятно для школьника. "
-        "ЗАПРЕЩЕНО использовать LaTeX-разметку. "
-        "Пиши формулы в простом текстовом виде:\n"
-        "- Дроби как 'a/b' или '(x+1)/(x-2)'\n"
-        "- Степени как 'x^2'\n"
-        "- Корни как '√16'\n"
-        "- Знак плюс-минус как '±'\n\n"
+        "СТРОГО ЗАПРЕЩЕНО использовать LaTeX-разметку. "
+        "Пиши формулы в простом текстовом виде: дроби как 'a/b', степени как 'x^2', корни как '√16', знак ± как '±'.\n"
+        "ЗАПРЕЩЕНО добавлять предупреждения о списывании, морализаторство и рассуждения на тему учёбы. "
+        "Только решение задачи. Если это геометрия — просто найди угол, сторону, докажи.\n"
     )
 
+    # Промпты для каждого предмета
     subject_prompts = {
-        "математика": base_prompt + "Ты учитель математики. Решай уравнения по шагам.",
+        "математика": base_prompt + "Ты учитель математики. Решай уравнения и задачи по шагам.",
         "физика": base_prompt + "Ты учитель физики. Оформляй решение с Дано, Найти, Решение, Ответ.",
         "химия": base_prompt + "Ты учитель химии. Уравнивай реакции, объясняй процессы.",
         "биология": base_prompt + "Ты учитель биологии. Объясняй биологические процессы простым языком.",
@@ -68,23 +68,20 @@ async def get_neural_response(subject: str, task: str, mode: str = 'full') -> st
         "музыка": base_prompt + "Ты учитель музыки. Рассказывай о композиторах и произведениях."
     }
 
-    # Выбор режима
+    # Режимы ответа
     mode_prompts = {
-        'full': "Объясняй максимально подробно, с примерами, по шагам. Пиши как учитель для ученика.",
-        'short': "Отвечай максимально кратко, только суть. Без лишних объяснений. Если задача — дай ответ и краткое решение в 1-2 строки.",
+        'full': "Объясняй максимально подробно, с примерами, по шагам.",
+        'short': "Отвечай максимально кратко, только суть. Без лишних объяснений.",
         'cute': (
-            "Ты очень милый и заботливый учитель. "
-            "Обращайся к ученику ласково: 'зайка', 'солнышко', 'пупсик', 'милый', 'родной'. "
-            "Добавляй комплименты: 'ты такой умничка', 'у тебя отлично получается', 'я в тебя верю'. "
-            "Используй много смайликов: 🥰 💕 🌸 🌟 💖 🥺 💞. "
-            "Но при этом НЕ выходи за рамки — это учебный бот. Решай задачи правильно, но с любовью."
+            "Ты очень милый и заботливый учитель. Обращайся ласково: 'зайка', 'солнышко', 'пупсик'. "
+            "Добавляй комплименты: 'ты умничка', 'у тебя отлично получается'. "
+            "Используй смайлики: 🥰 💕 🌸. Но НЕ выходи за рамки — это учебный бот."
         )
     }
-    mode_instruction = mode_prompts.get(mode, mode_prompts['full'])
 
-    system_prompt = subject_prompts.get(subject_ru, base_prompt) + " " + mode_instruction
+    system_prompt = subject_prompts.get(subject_ru, base_prompt) + " " + mode_prompts.get(mode, mode_prompts['full'])
 
-    # Вызов API (без изменений, как у тебя было)
+    # Формируем запрос
     body = {
         "modelUri": f"gpt://{YANDEX_FOLDER_ID}/{YANDEX_MODEL}",
         "completionOptions": {"stream": False, "temperature": 0.2, "maxTokens": 800},
@@ -93,11 +90,17 @@ async def get_neural_response(subject: str, task: str, mode: str = 'full') -> st
             {"role": "user", "text": task}
         ]
     }
-    url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
-    headers = {"Content-Type": "application/json; charset=utf-8", "Authorization": f"Api-Key {YANDEX_API_KEY}"}
 
     try:
-        response = requests.post(url, headers=headers, json=body, timeout=30)
+        response = requests.post(
+            "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+            headers={
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": f"Api-Key {YANDEX_API_KEY}"
+            },
+            json=body,
+            timeout=30
+        )
         if response.status_code != 200:
             return "❌ Ошибка API."
         result = response.json()
