@@ -1,7 +1,7 @@
 import aiohttp
 from typing import Optional
 
-class PollinationsAPI:
+class NanoBananaAPI:
     """Клиент для Pollinations AI — работает без ключей и заморочек"""
     
     def __init__(self):
