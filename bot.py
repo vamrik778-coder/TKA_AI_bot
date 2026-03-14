@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton,
-    FSInputFile
+    FSInputFile, BufferedInputFile  # ← ЭТОТ ИМПОРТ ДОБАВЛЕН!
 )
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -21,10 +21,10 @@ from database import (
     init_db, check_limit, update_user_requests,
     get_user, set_user_subject, get_user_subject,
     activate_premium, get_answer_mode, set_answer_mode,
-    check_image_limit, update_image_counter  # обе функции должны быть
+    check_image_limit, update_image_counter
 )
 from neural import get_neural_response
-from nanobanana import NanoBananaAPI
+from nanobanana import NanoBananaAPI  # Пока оставим, потом заменим на PollinationsAPI
 
 print("=" * 50)
 print("🚀 STARTING TKA AI BOT WITH 10 SUBJECTS, 3 MODES, HOLIDAYS, IMAGE GENERATION")
@@ -39,8 +39,10 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# ===== ИНИЦИАЛИЗАЦИЯ NANO BANANA =====
-nano = NanoBananaAPI()
+# ===== ИНИЦИАЛИЗАЦИЯ ГЕНЕРАЦИИ =====
+# nano = NanoBananaAPI()  # временно отключим, пока не переключим API
+# Временно, пока чиним генерацию:
+nano = None
 
 # ========== СОСТОЯНИЯ ==========
 class PhotoStates(StatesGroup):
@@ -91,48 +93,28 @@ def detect_subject(text: str) -> str:
     """Автоматически определяет предмет по тексту"""
     tl = text.lower()
     
-    # Математика
     if any(k in tl for k in ['x²', 'x^2', '√', 'дискриминант', 'корень', 'уравнение']):
         return 'mathematics'
-    
-    # Физика
     if any(k in tl for k in ['ом', 'напряжение', 'сила тока', 'физика']):
         return 'physics'
-    
-    # Химия
     if any(k in tl for k in ['h2o', 'реакция', 'кислота', 'химия']):
         return 'chemistry'
-    
-    # Биология
     if any(k in tl for k in ['клетка', 'биология', 'фотосинтез', 'организм']):
         return 'biology'
-    
-    # Русский язык
     if any(k in tl for k in ['слово', 'предложение', 'суффикс', 'корень', 'разбор']):
         return 'russian'
-    
-    # История
     if any(k in tl for k in ['история', 'война', 'революция', 'царь', 'дата']):
         return 'history'
-    
-    # География
     if any(k in tl for k in ['география', 'река', 'гора', 'страна', 'столица']):
         return 'geography'
-    
-    # Обществознание
     if any(k in tl for k in ['общество', 'государство', 'право', 'экономика']):
         return 'society'
-    
-    # Литература
     if any(k in tl for k in ['литература', 'поэт', 'писатель', 'роман']):
         return 'literature'
-    
-    # Музыка
     if any(k in tl for k in ['нота', 'аккорд', 'музыка', 'бетховен']):
         return 'music'
     
     return None
-
 # ========== КОМАНДА СТАРТ ==========
 @dp.message(Command("start"))
 async def start_command(message: types.Message):
@@ -436,12 +418,15 @@ async def draw_command(message: types.Message):
     if image_bytes:
         new_count = await update_image_counter(user_id)
         await status.delete()
-        await message.answer_photo(
-            photo=image_bytes,
-            caption=f"🍌 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
-            parse_mode="Markdown",
-            reply_markup=get_main_keyboard()
-        )
+        from aiogram.types import BufferedInputFile
+
+photo_file = BufferedInputFile(image_bytes, filename="image.jpg")
+await message.answer_photo(
+    photo=photo_file,
+    caption=f"🍌 **Запрос:** {prompt}\n📊 Осталось {limit - new_count}/{limit} генераций",
+    parse_mode="Markdown",
+    reply_markup=get_main_keyboard()
+)
     else:
         await status.edit_text(
             "❌ Не удалось сгенерировать картинку.\n"
@@ -675,6 +660,22 @@ async def admin_give_callback(callback: types.CallbackQuery):
         )
 
     await callback.message.edit_text(text)
+
+    # ========== ВРЕМЕННАЯ КОМАНДА ДЛЯ СБРОСА ЛИМИТОВ ==========
+@dp.message(Command("resetme"))
+async def reset_me(message: types.Message):
+    """Сбрасывает личный лимит пользователя"""
+    user_id = message.from_user.id
+    
+    import aiosqlite
+    async with aiosqlite.connect('users.db') as db:
+        await db.execute(
+            "UPDATE users SET requests_today = 0, last_request_date = ? WHERE user_id = ?",
+            (str(date.today()), user_id)
+        )
+        await db.commit()
+    
+    await message.answer("✅ Твой лимит сброшен! Теперь у тебя снова 15/50 запросов в зависимости от статуса.")
 
 # ========== СТАТИСТИКА ==========
 @dp.message(Command("stats"))
