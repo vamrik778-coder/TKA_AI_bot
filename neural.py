@@ -2,9 +2,14 @@ import requests
 import json
 import re
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # ===== НАСТРОЙКИ YANDEX GPT =====
-YANDEX_API_KEY = "AQVNya2KqtOWB9v5kLrdtPSFOoTGOiiVm7p7fzOw"
-YANDEX_FOLDER_ID = "b1gv2lll7placgqgcv61"
+YANDEX_API_KEY = os.getenv("YANDEX_API_KEY")
+YANDEX_FOLDER_ID = os.getenv("YANDEX_FOLDER_ID")
 YANDEX_MODEL = "yandexgpt-lite"
 
 def clean_latex(text: str) -> str:
